@@ -7,7 +7,7 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.torch_layers import NatureCNN, FlattenExtractor
 from models.utils.impala_cnn import ImpalaCNNLarge, ImpalaCNNSmall
 from models.utils.flatten_mlp import FlattenMLP
-from detached_actor_critic import DetatchedActorCriticPolicy
+from models.policy_head.detached_actor_critic import DetatchedActorCriticPolicy
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecTransposeImage
 import numpy as np
 
@@ -149,7 +149,7 @@ class PolicyHead:
             if learning_head == 'direct':
                 features_dim = self.model_config['ppo_policy_kwargs']['backbone_dim']
             elif learning_head == 'supervised':
-                features_dim = len(expert_obs.high)
+                features_dim = len(expert_obs.high) * self.model_config['vector_size_per_factor']
             elif 'ssl' in learning_head:
                 features_dim = self.model_config['num_factors'] * self.model_config['vector_size_per_factor']
 
@@ -160,11 +160,11 @@ class PolicyHead:
                 features_extractor_kwargs = dict(features_dim = features_dim, backbone_dim=self.model_config['ppo_policy_kwargs']['backbone_dim'], 
                 vector_size_per_factor = self.model_config['vector_size_per_factor'], num_factors = self.model_config['num_factors'], 
                 expert_obs = expert_obs, learning_head = learning_head, num_actions=num_actions),
-                shared_feature_extractor = True
+                share_features_extractor = False
             )
             
             #NOTE: include lr schedule if needed
-            #lr_schedule = self.linear_schedule(self.model_config['learning_rate'])  
+            #lr_schedule = self.linear_schedule(self.model_config['learning_rate']) 
             model = PPO(
                 policy=self.policy_name,
                 env=self.parallel_train_env,
@@ -208,7 +208,8 @@ class PolicyHead:
                 "model": self.model_config,
                 "data": self.data_config,
                 "seed": self.seed,
-                "num_parallel_envs": self.model_config['num_parallel_envs']
+                "num_parallel_envs": self.model_config['num_parallel_envs'],
+                "group_id": f"{self.model_config['learning_head']}_{self.data_config['observation_space']}"
             }
         )
         train_interval = self.model_config['train_interval']

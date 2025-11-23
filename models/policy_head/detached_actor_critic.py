@@ -9,7 +9,7 @@ import numpy as np
 import torch as th
 from gymnasium import spaces
 from torch import nn
-
+import pdb
 from stable_baselines3.common.distributions import (
     BernoulliDistribution,
     CategoricalDistribution,
@@ -83,7 +83,7 @@ class DetatchedActorCriticPolicy(BasePolicy):
         squash_output: bool = False,
         features_extractor_class: type[BaseFeaturesExtractor] = NatureCNN,
         features_extractor_kwargs: Optional[dict[str, Any]] = None,
-        share_features_extractor: bool = True,
+        share_features_extractor: bool = False,
         normalize_images: bool = True,
         optimizer_class: type[th.optim.Optimizer] = th.optim.Adam,
         optimizer_kwargs: Optional[dict[str, Any]] = None,

@@ -21,7 +21,7 @@ conda activate ssl_new
 # SEED=`expr $i % 5`
 # ALGO_TYPE=`expr $i / 5`
 
-SEED=2
+SEED=0
 
 echo "SEED: $SEED"
 echo "SLURM_ARRAY_JOB_ID: $SLURM_ARRAY_JOB_ID"
@@ -30,5 +30,6 @@ RUN_NAME="${SLURM_ARRAY_JOB_ID}"
 
 cd ..
 
-python -W ignore models/policy_head/policy_head.py --seed $SEED
+# python -W ignore models/policy_head/policy_head.py --seed $SEED
+python -W ignore -m models.policy_head.policy_head --seed $SEED
 echo "FINISHED RUNNING SEED: $SEED"
