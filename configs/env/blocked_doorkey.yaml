@@ -1,0 +1,28 @@
+defaults:
+  - /shared/general
+environment_name: MiniGrid-BlockedDoorKey-8x8 #options: [MiniGrid-DoorKey-16x16-v0, MiniGrid-FourRooms-v0, MiniGrid-LavaCrossingS11N5-v0, MiniGrid-LavaCrossingS9N3-v0, MiniGrid-Empty-5x5-v0]
+max_steps: 1000
+highlight: False
+
+#constant capturing all types of state attributes in the expert state
+state_attributes: [agent_pos, agent_dir, key_pos, door_pos, holding_key, door_locked, door_open, ball_pos, holding_ball, goal_pos]
+state_attribute_types: {'agent_pos': ['coordinate_width', 'coordinate_height'], 'agent_dir':['agent_dir'], 'goal_pos':['coordinate_width', 'coordinate_height'], 'key_pos':['coordinate_width', 'coordinate_height'], 'door_pos':['coordinate_width', 'coordinate_height'], 'ball_pos': ['coordinate_width', 'coordinate_height'] , 'holding_key': ['boolean'], 'holding_ball': ['boolean'], 'door_locked':['boolean'], 'door_open':['boolean']}
+normalize_state: False
+
+#options: [agent_pos: [x,y], agent_dir: [int], goal_pos: [x,y], key_pos: [x,y], door_pos: [x,y], holding_key: true/false, door_locked: true/false, door_open: true/false]
+#agent_dir: 0 - right, 1 - down, 2 - left, 3 - up
+controlled_factors: {
+  agent_pos: [7,1],
+  agent_dir: 1,
+  key_pos: [8,3],
+  holding_key: true,
+  door_locked: false,
+  door_open: true,
+  ball_pos: [4,5],
+  holding_ball: true,
+  goal_pos: [10,10]
+}
+
+data_generator:
+  _target_: data.data_generator.MiniGridDataGenerator
+  cfg: ${env} 

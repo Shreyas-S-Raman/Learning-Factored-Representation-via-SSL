@@ -1,5 +1,10 @@
+
+defaults:
+  - env: blocked_doorkey
+  - _self_
+
 policy_head:
-  algorithm: "PPO"  # Options: DQN, PPO, A2C
+  algorithm: "PPO"
   num_models: 3
   num_parallel_envs: 4 #NOTE: log freqs have to be divisible by num_parallel_envs 
   train_interval: 4000000
@@ -11,10 +16,11 @@ policy_head:
   save_weight_freq: 50000
   wandb_log: false
   normalize: true
+  representation_head: null 
+  # options 
+  # [raw, expert, supervised, dreamerv2, factored-vf, factored-mask, ssl-cov, ssl-mask, ssl-mask-reconst, ssl-cov-ik]
 
-  learning_head: 'ssl-mask-reconst' #options [direct, supervised, ssl-cov, ssl-mask, ssl-mask-reconst, ssl-cov-ik, dreamerv2] etc...
-
-  #configs only for supervised and ssl methods
+  # configs only for supervised and ssl methods
   vector_size_per_factor: 4
   num_factors: 10
 
@@ -36,30 +42,4 @@ policy_head:
     # max_grad_norm: 0.5
     target_kl: null
     verbose: null
-    seed: null
-
-  dqn:
-    buffer_size: 500000
-    learning_starts: 10
-    batch_size: 32
-    learning_rate: 0.000005
-    gradient_steps: 16
-    tau: 0.8
-    gamma: 0.99
-    train_freq: 1
-    exploration_fraction: 0.1
-    exploration_final_eps: 0.1
-    #max_grad_norm: 10
-    seed: null
-
-  a2c:
-    learning_rate: 0.0003
-    n_steps: 5
-    gamma: 0.99
-    ent_coef: 0.01
-    vf_coef: 0.5
-    max_grad_norm: 0.5
-    rms_prop_eps: 1e-5
-    gae_lambda: 0.95
-    normalize_advantage: True
     seed: null

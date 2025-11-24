@@ -1,3 +1,0 @@
-hydra:
-  sweep:
-    dir: multirun/${now:%Y-%m-%d}/${model.name}_${data.train_on}_${now:%H-%M-%S}
