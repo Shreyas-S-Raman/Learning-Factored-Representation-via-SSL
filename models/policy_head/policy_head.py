@@ -113,7 +113,6 @@ class PolicyHead:
     
     def create_env(self, seed = None, config='config.yaml'):
         
-
         def _init():
             env = Monitor(DataGenerator(config))
             env.reset(seed=seed)
@@ -172,24 +171,6 @@ class PolicyHead:
                 tensorboard_log=f"./logs/{self.algorithm}_{self.data_config['environment_name']}_tensorboard/{self.model_config['learning_head']}_{self.data_config['observation_space']}/seed_{seed}/",
                 policy_kwargs = policy_kwargs,
                 **ppo_params,
-            )
-        elif self.algorithm == "DQN":
-            dqn_params = {k: v for k, v in self.model_config['dqn'].items() if v is not None}
-            model = DQN(
-                policy=self.policy_name,
-                env=self.parallel_train_env,
-                seed=seed,
-                **dqn_params,
-                tensorboard_log=f"./logs/{self.algorithm}_{self.data_config['environment_name']}_tensorboard/{self.model_config['learning_head']}_{self.data_config['observation_space']}/seed_{seed}/"
-            )
-        elif self.algorithm == "A2C":
-            a2c_params = {k: v for k, v in self.model_config['a2c'].items() if v is not None}
-            model = A2C(
-                policy=self.policy_name,
-                env=self.parallel_train_env,
-                seed=seed,
-                **a2c_params,
-                tensorboard_log=f"./logs/{self.algorithm}_{self.data_config['environment_name']}_tensorboard/{self.model_config['learning_head']}_{self.data_config['observation_space']}/seed_{seed}/"
             )
         else:
             raise ValueError(f"Unsupported RL algorithm: {self.algorithm}")

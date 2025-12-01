@@ -1,0 +1,25 @@
+defaults:
+  - /shared/general
+environment_name: scene-play #options: [scene-play, place-cube, place-cube-reset]
+max_steps: 1000000
+
+#constant capturing all types of state attributes in the expert state
+state_attributes: ['drawer_open','drawer_locked','slide_open','slide_locked','cube_coords','ee_coords','holding_cube','cube_in_drawer']
+state_attribute_types: {'drawer_open':['boolean'], 'drawer_locked':['boolean'], 'slide_open':['boolean'], 'slide_locked':['boolean'], 'cube_coords':['coordinate', 'coordinate', 'coordinate'], 'ee_coords': ['coordinate','coordinate','coordinate'], 'holding_cube':['boolean'], 'cube_in_drawer':['boolean']}
+normalize_state: False
+
+#options: [agent_pos: [x,y], agent_dir: [int], goal_pos: [x,y], key_pos: [x,y], door_pos: [x,y], holding_key: true/false, door_locked: true/false, door_open: true/false]
+controlled_factors: {
+  drawer_open: false,
+  drawer_locked: true,
+  slide_open: false,
+  slide_locked: true,
+  cube_coords: [0,0,0],
+  ee_coords: [0,0,0],
+  holding_cube: false,
+  cube_in_drawer: false
+}
+
+data_generator:
+  _target_: data.data_generator.OGBenchDataGenerator
+  cfg: ${env} 

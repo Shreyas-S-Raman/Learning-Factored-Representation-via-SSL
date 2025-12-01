@@ -1,5 +1,0 @@
-cifar10_path: ~/scratch/data/CIFAR10
-cifar100_path: ~/scratch/data/CIFAR100
-train_imagenet_path: /jobtmp/vsharm44/ImageNet/train
-val_imagenet_path: /jobtmp/vsharm44/ImageNet/val
-data_env_config: /users/vsharm44/projects/Learning-Factored-Representation-via-SSL/configs/data_generator/config.yaml

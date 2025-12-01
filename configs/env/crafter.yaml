@@ -1,0 +1,64 @@
+defaults:
+  - /shared/general
+environment_name: MiniGrid-BlockedDoorKey-8x8 #options: [MiniGrid-DoorKey-16x16-v0, MiniGrid-FourRooms-v0, MiniGrid-LavaCrossingS11N5-v0, MiniGrid-LavaCrossingS9N3-v0, MiniGrid-Empty-5x5-v0]
+# environment_name: MiniGrid-BlockedUnlockPickup-v0 #options: [MiniGrid-DoorKey-16x16-v0, MiniGrid-FourRooms-v0, MiniGrid-LavaCrossingS11N5-v0, MiniGrid-LavaCrossingS9N3-v0, MiniGrid-Empty-5x5-v0]
+observation_space: expert #options: [image, expert]
+max_steps: 1000
+highlight: False
+
+#options: [random_rotation: [max_degrees, p], random_scaling: scalar, random_masking: [num_holes (min, max), hole_height_range (min, max), hole_width_range (min, max), probability], random_greyscale: probability, random_horz_flip: probability, random_vert_flip: probability, random_color_jitter: [brightness (min, max), contrast (min, max), saturation (min, max), hue (min, max), prob]]
+transformations: {
+  
+}
+
+# 'random_rotation': A.Rotate(limit=transformation_types['random_rotation'][0], p=transformation_types['random_rotation'][1]),
+# 'random_scaling': A.RandomScale(scale_limit=transformation_types['random_scale'][0], p=transformation_types['random_scale'][1]),
+# 'random_horz_flip': A.HorizontalFlip(p=transformation_types['random_horz_flip'][0]),
+# 'random_vert_flip': A.VerticalFlip(p=transformation_types['random_vert_flip'][0]),
+# 'random_color_jitter': A.ColorJitter(brightness=transformation_types['random_color_jitter'][0], contrast=transformation_types['random_color_jitter'][1], saturation=transformation_types['random_color_jitter'][2], hue=transformation_types['random_color_jitter'][3], p=transformation_types['random_color_jitter'][4]),
+# 'random_greyscale': A.ToGray(p=transformation_types['random_greyscale'][0]),
+# 'random_masking': A.CoarseDropout(num_holes_range=transformation_types['random_masking'][0], hole_height_range=transformation_types['random_masking'][1], hole_width_range=transformation_types['random_masking'][2], p=transformation_types['random_masking'][3])
+
+
+#constant capturing all types of state attributes in the expert state
+#DoorKey {'agent_pos': ['coordinate_width', 'coordinate_height'], 'agent_dir':['agent_dir'], 'goal_pos':['coordinate_width', 'coordinate_height'], 'key_pos':['coordinate_width', 'coordinate_height'], 'door_pos':['coordinate_width', 'coordinate_height'], 'holding_key': ['boolean'], 'door_locked':['boolean'], 'door_open':['boolean'], 'walls':['boolean']}
+#DoorKey: [agent_pos, agent_dir, goal_pos, key_pos, door_pos,holding_key, door_locked, door_open, walls]
+#BlockedUnlockPickup: [agent_pos, agent_dir, goal_pos, key_pos, door_pos, ball_pos, holding_key, holding_obj, door_locked, door_open, walls]
+#Four Rooms: [agent_pos, agent_dir, goal_pos, wall_gaps]
+#Four Rooms: {'agent_pos': ['coordinate_width', 'coordinate_height'], 'agent_dir':['agent_dir'], 'goal_pos':['coordinate_width', 'coordinate_height'], 'wall_gaps': ['coordinate_width', 'coordinate_height']}
+
+# state_attributes: [agent_pos, agent_dir, key_pos, holding_key, door_pos, door_locked, door_open, goal_pos]
+state_attributes: [agent_pos, agent_dir, key_pos, door_pos, holding_key, door_locked, door_open, ball_pos, holding_ball, goal_pos]
+state_attribute_types: {'agent_pos': ['coordinate_width', 'coordinate_height'], 'agent_dir':['agent_dir'], 'goal_pos':['coordinate_width', 'coordinate_height'], 'key_pos':['coordinate_width', 'coordinate_height'], 'door_pos':['coordinate_width', 'coordinate_height'], 'ball_pos': ['coordinate_width', 'coordinate_height'] , 'holding_key': ['boolean'], 'holding_ball': ['boolean'], 'door_locked':['boolean'], 'door_open':['boolean'], 'wall_gaps': ['coordinate_width', 'coordinate_height']}
+normalize_state: False
+
+#options: [default, random, custom]
+reset_type: default
+
+
+#options: [agent_pos: [x,y], agent_dir: [int], goal_pos: [x,y], key_pos: [x,y], door_pos: [x,y], holding_key: true/false, door_locked: true/false, door_open: true/false]
+#agent_dir: 0 - right, 1 - down, 2 - left, 3 - up
+controlled_factors: {
+  agent_pos: [7,1],
+  agent_dir: 1,
+  key_pos: [8,3],
+  goal_pos: [10,10],
+  holding_key: true,
+  door_locked: false,
+  door_open: true
+}
+
+#options: true/false
+deterministic_action: true
+
+#options: float between 0-1.0
+action_stochasticity: 0.9
+
+#options: true/false
+exploration_bonus: False
+
+#options: false / true
+record_video: false
+
+#padding size for scaling visual observations
+padded_size: null #null #[64,64]

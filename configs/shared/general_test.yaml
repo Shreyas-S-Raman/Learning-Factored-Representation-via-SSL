@@ -1,0 +1,35 @@
+observation_space: expert #options: [image, expert]
+max_steps: 1000
+
+#options: [random_rotation: [max_degrees, p], random_scaling: scalar, random_masking: [num_holes (min, max), hole_height_range (min, max), hole_width_range (min, max), probability], random_greyscale: probability, random_horz_flip: probability, random_vert_flip: probability, random_color_jitter: [brightness (min, max), contrast (min, max), saturation (min, max), hue (min, max), prob]]
+transformations: {
+  random_greyscale: {p: 0.5},
+  random_color_jitter: {brightness: [0.7, 1.4], contrast: [0.7, 1.4], saturation: [0.7, 1.4], hue: [-0.5, 0.5]},
+  random_masking: { num_holes_range: [3,3], hole_height_range: [3,5], hole_width_range: [3,5], p: 0.5 }
+}
+
+# 'random_rotation': A.Rotate(limit=transformation_types['random_rotation'][0], p=transformation_types['random_rotation'][1]),
+# 'random_scaling': A.RandomScale(scale_limit=transformation_types['random_scale'][0], p=transformation_types['random_scale'][1]),
+# 'random_horz_flip': A.HorizontalFlip(p=transformation_types['random_horz_flip'][0]),
+# 'random_vert_flip': A.VerticalFlip(p=transformation_types['random_vert_flip'][0]),
+# 'random_color_jitter': A.ColorJitter(brightness=transformation_types['random_color_jitter'][0], contrast=transformation_types['random_color_jitter'][1], saturation=transformation_types['random_color_jitter'][2], hue=transformation_types['random_color_jitter'][3], p=transformation_types['random_color_jitter'][4]),
+# 'random_greyscale': A.ToGray(p=transformation_types['random_greyscale'][0]),
+# 'random_masking': A.CoarseDropout(num_holes_range=transformation_types['random_masking'][0], hole_height_range=transformation_types['random_masking'][1], hole_width_range=transformation_types['random_masking'][2], p=transformation_types['random_masking'][3])
+
+#options: [default, random, custom]
+reset_type: default
+
+#options: true/false
+deterministic_action: true
+
+#options: float between 0-1.0
+action_stochasticity: 0.0
+
+#options: true/false
+exploration_bonus: False
+
+#options: false / true
+record_video: false
+
+#padding size for scaling visual observations
+padded_size: null #null #[64,64]

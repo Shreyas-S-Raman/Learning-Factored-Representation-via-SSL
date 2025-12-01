@@ -1,0 +1,45 @@
+
+defaults:
+  - env: blocked_doorkey
+  - _self_
+
+policy_head:
+  algorithm: "PPO"
+  num_models: 3
+  num_parallel_envs: 4 #NOTE: log freqs have to be divisible by num_parallel_envs 
+  train_interval: 4000000
+  num_eval_eps: 10
+  verbose: true
+  video_length: 200
+  video_log_freq: 20000
+  reward_log_freq: 1000
+  save_weight_freq: 50000
+  wandb_log: false
+  normalize: true
+  representation_head: null 
+  # options 
+  # [raw, expert, supervised, dreamerv2, factored-vf, factored-mask, ssl-cov, ssl-mask, ssl-mask-reconst, ssl-cov-ik]
+
+  # configs only for supervised and ssl methods
+  vector_size_per_factor: 4
+  num_factors: 10
+
+  ppo_policy_kwargs:
+    pi_dims: [64, 128]
+    vf_dims: [64, 128]
+    backbone_dim: 256
+  ppo:
+    # n_steps: 200
+    # n_epochs: 10
+    learning_rate: 0.0003
+    # batch_size: 400
+    gamma: 0.99
+    # gae_lambda: 0.95
+    # clip_range: 0.15
+    # clip_range_vf: 0.65
+    # normalize_advantage: True
+    ent_coef: 0.01
+    # max_grad_norm: 0.5
+    target_kl: null
+    verbose: null
+    seed: null

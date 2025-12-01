@@ -1,45 +1,17 @@
-"""
-This script demonstrates how to train a model using the stable-SSL library.
-"""
-import sys
-import os
-
-# Add the parent folder to sys.path
-parent_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(parent_dir))
-
-
+# policy_learning/train.py
 import hydra
 from omegaconf import DictConfig
+from hydra.utils import instantiate
 
-from models.ssl_models.stable_ssl_patches import patch_stable_ssl
-from models.ssl_models.custom_config import get_args
-
-from models.ssl_models.custom_supervised import Supervised
-from models.ssl_models.custom_barlow_twins import BarlowTwins
-from models.ssl_models.factored_models import CovarianceFactorization, MaskingFactorization
-
-
-model_dict = {
-    "Supervised": Supervised,
-    "BarlowTwins": BarlowTwins,
-    "CovarianceFactorization": CovarianceFactorization,
-    "MaskingFactorization": MaskingFactorization,
-}
-
-
-@hydra.main(config_path="configs/ssl_configs/")
+@hydra.main(config_path="./configs/policy_learning", config_name="config", version_base="1.3")
 def main(cfg: DictConfig):
-    changed = patch_stable_ssl()
-    print(f"Applied {len(changed)} patches to stable-ssl!")
-    args = get_args(cfg)
+    # build the data generator (env-specific)
+    data_gen = instantiate(cfg.env.dataset)
 
-    print("--- Arguments ---")
-    print(args)
-
-    trainer = model_dict[args.model.name](args)
-    trainer()
-
+    # log training configs
+    print("Env name:", cfg.env.environment_name)
+    print("Total steps:", cfg.train.total_steps)
+    print("PPO lr:", cfg.ppo.lr)
 
 if __name__ == "__main__":
     main()

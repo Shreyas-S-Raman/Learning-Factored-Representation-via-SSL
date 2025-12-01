@@ -12,7 +12,13 @@ class CustomEnvReset:
 
     def __init__(self, env_name, all_factors):
 
-        custom_reset = {'DoorKey': self._custom_reset_doorkey, 'LavaCrossing': self._custom_reset_lavacrossing, 'FourRooms': self._custom_reset_fourrooms, 'Empty': self._custom_reset_empty}
+        custom_reset = {
+            'DoorKey': self._custom_reset_doorkey, 
+            'LavaCrossing': self._custom_reset_lavacrossing, 
+            'FourRooms': self._custom_reset_fourrooms, 
+            'Empty': self._custom_reset_empty,
+            'CartPole': self._custom_reset_cartpole
+        }
         
         for k in custom_reset.keys():
             if k in env_name:
@@ -70,6 +76,8 @@ class CustomEnvReset:
          
         return True, None
 
+    def _custom_reset_cartpole(self, env, controlled_factors ={}):
+        raise NotImplementedError()
     def _custom_reset_doorkey(self, env, width, height, controlled_factors={}, strict_check=True):
         
         #change the random seed locally 

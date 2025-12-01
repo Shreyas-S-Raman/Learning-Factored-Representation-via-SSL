@@ -1,4 +1,0 @@
-defaults:
-  - /user/general@local_data_path: data_paths
-  - /user/general@_global_: logging
-  - override /hydra/launcher: submitit_local

@@ -1,8 +1,0 @@
-defaults:
-  - /user/ssunda11@local_data_path: data_paths
-  - /user/ssunda11@_global_: logging
-  - override /hydra/launcher: submitit_slurm
-
-hydra:
-  launcher:
-    partition: gpu
