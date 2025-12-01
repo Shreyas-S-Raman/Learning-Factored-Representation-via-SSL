@@ -2,15 +2,16 @@ defaults:
   - /shared/general_test
 environment_name: SunblazeCartPoleRandomNormal-v0 ##options: [SunblazeCartPole-v0, SunblazeCartPoleRandomNormal-v0, SunblazeCartPoleRandomExtreme-v0]
 max_steps: 500
+reward_01: False
 
 #constant capturing all types of state attributes in the expert state
-state_attributes: [cart_x, cart_vel, pole_angle, pole_angular_vel]
-state_attribute_types: {'cart_x':['coordinate'], 'cart_vel':['coordinate'], 'pole_angle':['angle'], 'pole_angular_vel':['coordinate']}
+state_attributes: [cart_pos, cart_vel, pole_angle, pole_angular_vel]
+state_attribute_types: {'cart_pos':['coordinate'], 'cart_vel':['float'], 'pole_angle':['angle'], 'pole_angular_vel':['float']}
 normalize_state: False
 
 #options: [agent_pos: [x,y], agent_dir: [int], goal_pos: [x,y], key_pos: [x,y], door_pos: [x,y], holding_key: true/false, door_locked: true/false, door_open: true/false]
 controlled_factors: {
-  cart_x: 1.2,
+  cart_pos: 1.2,
   cart_vel: 1.1,
   pole_angle: 0.5,
   pole_angular_vel: 0.6,

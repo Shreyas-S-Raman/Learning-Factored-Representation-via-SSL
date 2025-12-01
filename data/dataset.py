@@ -44,7 +44,6 @@ class CustomDataset(Dataset):
             self.model = RandomPolicy(self.data_env)
 
         #store reference to CSV file if test set is loaded
-        # pdb.set_trace()
         if dataset_file is not None:
 
             self.dataset = []

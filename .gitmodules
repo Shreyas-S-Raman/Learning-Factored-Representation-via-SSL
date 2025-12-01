@@ -1,0 +1,3 @@
+[submodule "external/cartpole_gen"]
+	path = external/cartpole_gen
+	url = git@github.com:sunblaze-ucb/rl-generalization.git

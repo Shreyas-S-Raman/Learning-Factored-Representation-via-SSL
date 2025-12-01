@@ -1,40 +1,50 @@
 defaults:
   - /shared/general
-environment_name: MiniGrid-BlockedDoorKey-8x8 #options: [MiniGrid-DoorKey-16x16-v0, MiniGrid-FourRooms-v0, MiniGrid-LavaCrossingS11N5-v0, MiniGrid-LavaCrossingS9N3-v0, MiniGrid-Empty-5x5-v0]
+environment_name: CartPole-v1 #options: [MiniGrid-DoorKey-16x16-v0, MiniGrid-FourRooms-v0, MiniGrid-LavaCrossingS11N5-v0, MiniGrid-LavaCrossingS9N3-v0, MiniGrid-Empty-5x5-v0]
 max_steps: 1000
+reward_01: False
+num_carts: 4
 
 #constant capturing all types of state attributes in the expert state
-state_attributes: [cart_x_1, cart_vel_1, pole_angle_1, pole_angular_vel_1, cart_x_2, cart_vel_2, pole_angle_2, pole_angular_vel_2, cart_x_3, cart_vel_3, pole_angle_3, pole_angular_vel_3]
+state_attributes: [cart_pos_1, cart_vel_1, pole_angle_1, pole_angular_vel_1, cart_pos_2, cart_vel_2, pole_angle_2, pole_angular_vel_2, cart_pos_3, cart_vel_3, pole_angle_3, pole_angular_vel_3, cart_pos_4, cart_val_4, pole_angle_4, pole_angular_vel_4]
 state_attribute_types: {
-  'cart_x_1':['coordinate'], 
+  'cart_pos_1':['coordinate'], 
   'cart_vel_1':['coordinate'], 
   'pole_angle_1':['angle'], 
   'pole_angular_vel_1':['coordinate'],
-  'cart_x_2':['coordinate'], 
+  'cart_pos_2':['coordinate'], 
   'cart_vel_2':['coordinate'], 
   'pole_angle_2':['angle'], 
   'pole_angular_vel_2':['coordinate'],
-  'cart_x_3':['coordinate'], 
+  'cart_pos_3':['coordinate'], 
   'cart_vel_3':['coordinate'], 
   'pole_angle_3':['angle'], 
-  'pole_angular_vel_3':['coordinate']
+  'pole_angular_vel_3':['coordinate'],
+  'cart_pos_4':['coordinate'], 
+  'cart_vel_4':['coordinate'], 
+  'pole_angle_4':['angle'], 
+  'pole_angular_vel_4':['coordinate']
 }
 normalize_state: False
 
 #options: [agent_pos: [x,y], agent_dir: [int], goal_pos: [x,y], key_pos: [x,y], door_pos: [x,y], holding_key: true/false, door_locked: true/false, door_open: true/false]
 controlled_factors: {
-  cart_x_1: 1.0, 
+  cart_pos_1: 1.0, 
   cart_vel_1: 3.0, 
   pole_angle_1: 0.1, 
   pole_angular_vel_1: 2.0,
-  cart_x_2: 1.0, 
+  cart_pos_2: 1.0, 
   cart_vel_2: 3.0, 
   pole_angle_2: 0.1, 
   pole_angular_vel_2: 2.0,
-  cart_x_3: 1.0, 
+  cart_pos_3: 1.0, 
   cart_vel_3: 3.0, 
   pole_angle_3: 0.1, 
-  pole_angular_vel_3: 2.0
+  pole_angular_vel_3: 2.0,
+  cart_pos_4: 1.0, 
+  cart_vel_4: 3.0, 
+  pole_angle_4: 0.1, 
+  pole_angular_vel_4: 2.0
 }
 
 data_generator:
