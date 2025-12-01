@@ -1,6 +1,6 @@
 defaults:
   - /shared/general
-environment_name: SunblazeCartPole-v0 #options: [SunblazeCartPole-v0, SunblazeCartPoleRandomNormal-v0, SunblazeCartPoleRandomExtreme-v0]
+environment_name: CartPole-v1 #options: [SunblazeCartPole-v0, SunblazeCartPoleRandomNormal-v0, SunblazeCartPoleRandomExtreme-v0]
 max_steps: 500
 reward_01: False
 
@@ -20,3 +20,8 @@ controlled_factors: {
 data_generator:
   _target_: data.data_generator.CartPoleDataGenerator
   cfg: ${env} 
+
+# options: ranges (low, high) for [masscart, masspole, length, force_mag, gravity]
+cartpole_physics_params: {
+
+}

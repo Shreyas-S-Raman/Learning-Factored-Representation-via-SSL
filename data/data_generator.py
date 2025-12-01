@@ -5,7 +5,6 @@
 from minigrid.minigrid_env import MiniGridEnv
 from minigrid.core.world_object import Door, Goal, Key, Box, Ball
 from minigrid.wrappers import ImgObsWrapper, FullyObsWrapper, ActionBonus, ObservationWrapper
-from gymnasium.wrappers import TimeLimit
 from collections.abc import Iterable
 from omegaconf import DictConfig, OmegaConf
 import random
@@ -437,7 +436,6 @@ class MiniGridDataGenerator(DataGenerator):
             norm_state_array = list((norm_state_array - min_values) / (max_values - min_values))
         return state, norm_state_array
         
-    
 class CartPoleDataGenerator(DataGenerator):
 
     def __init__(self, cfg: DictConfig):
@@ -456,26 +454,27 @@ class CartPoleDataGenerator(DataGenerator):
         self.reward_01 = configs['reward_01']
 
         # Create the environment
-        self.env = sunblaze_envs.make(configs['environment_name'], render_mode='rgb_array', max_episode_steps = configs['max_steps'], max_steps=configs['max_steps'])
-
-        # Optionally wrap the environment for fully observable states
-        self.env = FullyObsWrapper(self.env)
-        self.env = ImgObsWrapper(self.env)
-
+        pdb.set_trace()
+        self.render_mode = 'rgb_array'
+        self.env = gym.make(configs['environment_name'], render_mode=self.render_mode, max_episode_steps = configs['max_steps'])
         
+        # update cartpole params for physics simulation
+        self.cartpole_params = configs['cartpole_physics_params']
+        self.env.unwrapped.masscart = random.uniform(self.cartpole_params['masscart'][0], self.cartpole_params['masscart'][1]) if 'masscart' in self.cartpole_params else self.env.unwrapped.masscart
+        self.env.unwrapped.masspole = random.uniform(self.cartpole_params['masspole'][0], self.cartpole_params['masspole'][1]) if 'masspole' in self.cartpole_params else self.env.unwrapped.masspole
+        self.env.unwrapped.length = random.uniform(self.cartpole_params['length'][0], self.cartpole_params['length'][1]) if 'length' in self.cartpole_params else self.env.unwrapped.length
+        self.env.unwrapped.total_mass = self.env.unwrapped.masscart + self.env.unwrapped.masspole
+        self.env.unwrapped.polemass_length = self.env.unwrapped.masspole * self.env.unwrapped.length
+        self.env.unwrapped.force_mag = random.uniform(self.cartpole_params['force_mag'][0], self.cartpole_params['force_mag'][1]) if 'force_mag' in self.cartpole_params else self.env.unwrapped.force_mag
+        self.env.unwrapped.gravity = random.uniform(self.cartpole_params['gravity'][0], self.cartpole_params['gravity'][1]) if 'gravity' in self.cartpole_params else self.env.unwrapped.gravity
+
         # Wrap the environment to enable stochastic actions
         if configs['deterministic_action'] is False:
             self.env = StochasticActionWrapper(env=self.env, prob=configs['action_stochasticity'])
         
-        # Wrap the environment to enable exploration bonus if needed
-        if configs['exploration_bonus'] is True:
-            self.env = ActionBonus(env = self.env)
-
         #Store the controlled factors array
         self.controlled_factors = configs['controlled_factors']
         
-        self.render_mode = 'rgb_array'
-
         #storing the custom reset function if needed
         self.custom_resetter = CustomEnvReset(configs['environment_name'], configs['state_attributes'])
 
@@ -517,7 +516,7 @@ class CartPoleDataGenerator(DataGenerator):
             min_values = (min_values - min_values)/(max_values - min_values)
             max_values = (max_values - min_values)/(max_values - min_values)
         return gym.spaces.Box(low=min_values, high=max_values, dtype=float)
-
+    
     def _create_observation_space(self, state_attribute_types):
         #return the desired gym Spaces based on the observation space
         if self.observation_type == 'image':
@@ -589,10 +588,6 @@ class CartPoleDataGenerator(DataGenerator):
 
         observation = self._get_obs(image = frame, state = norm_state_array)
 
-        # #reset in case the environment is done
-        # if done:
-        #     self.reset()
-
         return observation, reward, terminated, truncated, info
 
     def reset(self, seed=None):
@@ -603,7 +598,14 @@ class CartPoleDataGenerator(DataGenerator):
         - observation: visual observations after resetting the environment
         - info: additional information from environment after resetting
         '''
-        
+        # if specified resample the physics parameters for simulation during reset
+        self.env.unwrapped.masscart = random.uniform(self.cartpole_params['masscart'][0], self.cartpole_params['masscart'][1]) if 'masscart' in self.cartpole_params else self.env.unwrapped.masscart
+        self.env.unwrapped.masspole = random.uniform(self.cartpole_params['masspole'][0], self.cartpole_params['masspole'][1]) if 'masspole' in self.cartpole_params else self.env.unwrapped.masspole
+        self.env.unwrapped.length = random.uniform(self.cartpole_params['length'][0], self.cartpole_params['length'][1]) if 'length' in self.cartpole_params else self.env.unwrapped.length
+        self.env.unwrapped.total_mass = self.env.unwrapped.masscart + self.env.unwrapped.masspole
+        self.env.unwrapped.polemass_length = self.env.unwrapped.masspole * self.env.unwrapped.length
+        self.env.unwrapped.force_mag = random.uniform(self.cartpole_params['force_mag'][0], self.cartpole_params['force_mag'][1]) if 'force_mag' in self.cartpole_params else self.env.unwrapped.force_mag
+        self.env.unwrapped.gravity = random.uniform(self.cartpole_params['gravity'][0], self.cartpole_params['gravity'][1]) if 'gravity' in self.cartpole_params else self.env.unwrapped.gravity
         __, info = self.env.reset(seed=seed)
 
         #in case reset requires new state to have controlled state factors -- implement those controls
@@ -629,7 +631,7 @@ class CartPoleDataGenerator(DataGenerator):
         info['obs'] = frame
         #add the state in dictionary form for info
         info['state_dict'] = state
-        
+
         observation = self._get_obs(image = frame, state = norm_state_array)
 
         return observation, info
@@ -641,10 +643,6 @@ class CartPoleDataGenerator(DataGenerator):
         
         state, norm_state_array = self._construct_state()
         
-
-        factored = None
-
-
         obs = self._get_obs(image=frame, state= norm_state_array)
 
         return obs
@@ -653,10 +651,10 @@ class CartPoleDataGenerator(DataGenerator):
 
         state = {}
 
-        state_vector = self.env.unwrapped.state.copy()
-
+        state_vector = self.env.unwrapped.state
+        
         #extract the types of all tiles in the grid: useful for goal, key and door position
-        for i in range(state_vector):
+        for i in range(len(state_vector)):
             if i == 0:
                 attr = 'cart_pos'
             elif i == 1:
@@ -673,8 +671,7 @@ class CartPoleDataGenerator(DataGenerator):
             min_values = np.array(self.expert_observation_space.low)
             max_values = np.array(self.expert_observation_space.high)
             norm_state_array = list((norm_state_array - min_values) / (max_values - min_values))
-        return state, norm_state_array
-        
+        return state, norm_state_array     
 
 class MultiCartPoleDataGenerator(DataGenerator):
     def __init__(self, cfg: DictConfig):
@@ -692,25 +689,20 @@ class MultiCartPoleDataGenerator(DataGenerator):
         self.reward_01 = configs['reward_01']
         self.num_carts = configs['num_carts']                    
 
+        self.render_mode = 'rgb_array'
         # Create multiple independent CartPole envs
         self.env = []
         for _ in range(self.num_carts):
             env = gym.make(
                 configs['environment_name'],           # e.g. "CartPole-v1"
-                render_mode='rgb_array',
+                render_mode=self.render_mode,
                 max_episode_steps=configs['max_steps']
             )
-            env = FullyObsWrapper(env)
-            env = ImgObsWrapper(env)
             # Wrap the environment to enable stochastic actions
             if configs['deterministic_action'] is False:
                 env = StochasticActionWrapper(env=env, prob=configs['action_stochasticity'])
-            # Wrap the environment to enable exploration bonus if needed
-            if configs['exploration_bonus'] is True:
-                env = ActionBonus(env = env)
             self.env.append(env)
-
-        self.render_mode = 'rgb_array'
+        
         self.controlled_factors = configs.get('controlled_factors', None)
 
         #storing the custom reset function if needed
@@ -764,7 +756,7 @@ class MultiCartPoleDataGenerator(DataGenerator):
     def _create_observation_space(self, state_attribute_types):
 
         if self.observation_type == 'image':
-            frames = [env.render() for env in self.env]
+            frames = [env.unwrapped.render() for env in self.env]
             frames = self._stitch_image_observations(frames)
             frames = self.padding_func.pad(frames)
             img_space = gym.spaces.Box(
@@ -820,7 +812,7 @@ class MultiCartPoleDataGenerator(DataGenerator):
             
     def render(self):
         '''Implementing render() according to ABC of gymnasium env'''
-        frames = [env.render() for env in self.env]
+        frames = [env.unwrapped.render() for env in self.env]
         frame = self._stitch_image_observations(frames)
         frame = self.padding_func.pad(frame)
         frame = self.data_augmentor.apply_transformation(frame)
@@ -855,7 +847,7 @@ class MultiCartPoleDataGenerator(DataGenerator):
         truncated = bool(np.any(truncated_list))
 
         # Render stitched frame
-        frames = [env.render() for env in self.env]
+        frames = [env.unwrapped.render() for env in self.env]
         frame = self._stitch_image_observations(frames)
         frame = self.padding_func.pad(frame)
 
@@ -903,7 +895,7 @@ class MultiCartPoleDataGenerator(DataGenerator):
             obs_list.append(o)
             infos.append(info)
 
-        frames = [env.render() for env in self.env]
+        frames = [env.unwrapped.render() for env in self.env]
         frame = self._stitch_image_observations(frames)
         frame = self.padding_func.pad(frame)
 
@@ -926,7 +918,7 @@ class MultiCartPoleDataGenerator(DataGenerator):
         return observation, info
 
     def get_curr_obs(self):
-        frames = [env.render() for env in self.env]
+        frames = [env.unwrapped.render() for env in self.env]
         frame = self._stitch_image_observations(frames)
         frame = self.padding_func.pad(frame)
 
@@ -1293,7 +1285,7 @@ def build_data_generator(configs:DictConfig):
     pdb.set_trace()
     if 'MiniGrid' in configs.environment_name:
         data_generator = MiniGridDataGenerator(cfg=configs)
-    elif 'SunblazeCartPole' in configs.environment_name:
+    elif 'CartPole' in configs.environment_name and 'cartpole_physics_params' in configs:
         data_generator = CartPoleDataGenerator(cfg=configs)
     elif 'CartPole' in configs.environment_name:
         data_generator = MultiCartPoleDataGenerator(cfg=configs)

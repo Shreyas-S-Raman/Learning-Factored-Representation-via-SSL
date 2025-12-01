@@ -6,7 +6,7 @@ reward_01: False
 num_carts: 4
 
 #constant capturing all types of state attributes in the expert state
-state_attributes: [cart_pos_1, cart_vel_1, pole_angle_1, pole_angular_vel_1, cart_pos_2, cart_vel_2, pole_angle_2, pole_angular_vel_2, cart_pos_3, cart_vel_3, pole_angle_3, pole_angular_vel_3, cart_pos_4, cart_val_4, pole_angle_4, pole_angular_vel_4]
+state_attributes: [cart_pos_1, cart_vel_1, pole_angle_1, pole_angular_vel_1, cart_pos_2, cart_vel_2, pole_angle_2, pole_angular_vel_2, cart_pos_3, cart_vel_3, pole_angle_3, pole_angular_vel_3, cart_pos_4, cart_vel_4, pole_angle_4, pole_angular_vel_4]
 state_attribute_types: {
   'cart_pos_1':['coordinate'], 
   'cart_vel_1':['coordinate'], 
