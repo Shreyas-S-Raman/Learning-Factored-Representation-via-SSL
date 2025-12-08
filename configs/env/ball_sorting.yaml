@@ -1,0 +1,60 @@
+defaults:
+  - /shared/general
+environment_name: MiniGrid-BallSort-16x16 #options: [MiniGrid-BallSort-16x16, MiniGrid-BallSort-8x8, MiniGrid-BallSort-6x6]
+max_steps: 5000
+highlight: False
+reward_01: False
+
+#constant capturing all types of state attributes in the expert state
+state_attributes: [agent_pos, agent_dir, ball1_pos, ball1_color, box1_pos, box1_color, 'box1_full', 'box1_closed', ball2_pos, ball2_color, box2_pos, box2_color, 'box2_full', 'box2_closed', ball3_pos, ball3_color, box3_pos, box3_color, 'box3_full', 'box3_closed']
+state_attribute_types: {
+  'agent_pos': ['coordinate_width', 'coordinate_height'], 
+  'agent_dir':['agent_dir'], 
+  'ball1_pos':['coordinate_width', 'coordinate_height'],
+  'ball2_pos':['coordinate_width', 'coordinate_height'],
+  'ball3_pos':['coordinate_width', 'coordinate_height'],
+  'box1_pos':['coordinate_width', 'coordinate_height'],
+  'box2_pos':['coordinate_width', 'coordinate_height'],
+  'box3_pos':['coordinate_width', 'coordinate_height'],
+  'ball1_color':['color'],
+  'ball2_color':['color'],
+  'ball3_color':['color'],
+  'box1_color':['color'],
+  'box2_color':['color'],
+  'box3_color':['color'],
+  'box1_full':['boolean'],
+  'box2_full':['boolean'],
+  'box3_full':['boolean'],
+  'box1_closed':['boolean'],
+  'box2_closed':['boolean'],
+  'box3_closed': ['boolean']}
+normalize_state: False
+
+#options: [agent_pos: [x,y], agent_dir: [int], goal_pos: [x,y], key_pos: [x,y], door_pos: [x,y], holding_key: true/false, door_locked: true/false, door_open: true/false]
+#agent_dir: 0 - right, 1 - down, 2 - left, 3 - up
+controlled_factors: {
+  agent_pos: [7,1], 
+  agent_dir: 0, 
+  ball1_pos: [6,1],
+  ball2_pos: [2,2],
+  ball3_pos: [5,5],
+  box1_pos: [10,10],
+  box2_pos: [0,0],
+  box3_pos: [4, 5],
+  ball1_color: 0,
+  ball2_color: 1,
+  ball3_color: 2,
+  box1_color: 0,
+  box2_color: 1,
+  box3_color: 2,
+  box1_full: 0,
+  box2_full: 0,
+  box3_full: 0,
+  box1_closed: 0,
+  box2_closed: 0,
+  box3_closed: 0
+}
+
+data_generator:
+  _target_: data.data_generator.MiniGridDataGenerator
+  cfg: ${env} 
