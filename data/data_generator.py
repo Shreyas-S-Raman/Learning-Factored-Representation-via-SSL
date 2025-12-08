@@ -454,7 +454,6 @@ class CartPoleDataGenerator(DataGenerator):
         self.reward_01 = configs['reward_01']
 
         # Create the environment
-        pdb.set_trace()
         self.render_mode = 'rgb_array'
         self.env = gym.make(configs['environment_name'], render_mode=self.render_mode, max_episode_steps = configs['max_steps'])
         

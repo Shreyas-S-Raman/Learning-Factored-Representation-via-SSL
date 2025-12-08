@@ -20,7 +20,6 @@ class FlattenMLP(BaseFeaturesExtractor):
     def __init__(self, 
                  observation_space: gym.Space, 
                  features_dim:int=256, 
-                 backbone_dim:int=256, 
                  expert_obs: gym.Space = None, 
                  num_factors: int = None, 
                  num_actions: int = None,
@@ -36,9 +35,9 @@ class FlattenMLP(BaseFeaturesExtractor):
         self.mlp_layers = nn.Sequential(
             nn.Linear(dim_flatten, 64),
             nn.ReLU(),
-            nn.Linear(64, 32),
+            nn.Linear(64, 128),
             nn.ReLU(),
-            nn.Linear(32, features_dim)
+            nn.Linear(128, features_dim)
         )
 
     def forward(self, observations: torch.Tensor) -> torch.Tensor:

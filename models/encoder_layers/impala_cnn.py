@@ -1,14 +1,13 @@
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
-import gymnasium as gym
+from typing import TYPE_CHECKING, Optional
 from gymnasium import spaces
 from stable_baselines3.common.preprocessing import is_image_space
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import pdb
-from typing import Optional
-from models.learning_head.self_supervised_head import SelfSupervisedCovLearner, SelfSupervisedMaskLearner, SelfSupervisedCovIKLearner, SelfSupervisedMaskReconstrLearner
-from models.learning_head.supervised_head import SupervisedLearner
+# from models.learning_head.self_supervised_head import SelfSupervisedCovLearner, SelfSupervisedMaskLearner, SelfSupervisedCovIKLearner, SelfSupervisedMaskReconstrLearner
+# from models.learning_head.supervised_head import SupervisedLearner
+if TYPE_CHECKING:
+    import gymnasium as gym
 
 class ResidualBlock(nn.Module):
 
@@ -36,13 +35,7 @@ class ImpalaCNNLarge(BaseFeaturesExtractor):
         self,
         observation_space: gym.Space,
         features_dim: int = 256,
-        backbone_dim: int = 256,
-        vector_size_per_factor:int = 3,
-        expert_obs: gym.Space= None,
-        num_actions: int=3,
-        num_factors: int = None,
-        normalized_image: bool = False,
-        learning_head:Optional[str]=None
+        normalized_image: bool = False
     ) -> None:
         assert isinstance(observation_space, spaces.Box), (
             "ImpalaCNN must be used with a gym.spaces.Box ",
@@ -50,7 +43,6 @@ class ImpalaCNNLarge(BaseFeaturesExtractor):
         )
 
         n_input_channels = observation_space.shape[0]
-        output_dims = expert_obs.high
 
         super().__init__(observation_space, features_dim)
 
@@ -82,14 +74,10 @@ class ImpalaCNNLarge(BaseFeaturesExtractor):
         with torch.no_grad():
             n_flatten = self.cnn(torch.as_tensor(observation_space.sample()[None]).float()).shape[1]
         
-        self.fc = nn.Linear(n_flatten, backbone_dim)
-        
+        self.fc = nn.Linear(n_flatten, features_dim)
+    
 
-        learning_heads = {'supervised': SupervisedLearner, 'ssl-cov':SelfSupervisedCovLearner, 'ssl-cov-ik':SelfSupervisedCovIKLearner, 'ssl-mask':SelfSupervisedMaskLearner, 'ssl-mask-reconst':SelfSupervisedMaskReconstrLearner}
-        self.learning_head = None if learning_head is None or learning_head not in learning_heads else learning_heads[learning_head](backbone_dim=backbone_dim, vector_size_per_factor=vector_size_per_factor, num_factors=output_dims if learning_head == 'supervised' else num_factors, num_actions = num_actions)
-
-
-    def forward(self, x:torch.Tensor, actions:torch.Tensor=None, test:bool=True)->torch.Tensor:
+    def forward(self, x:torch.Tensor)->torch.Tensor:
         # Pixel normalization (/255)
         x = x / 255.0
 
@@ -99,10 +87,6 @@ class ImpalaCNNLarge(BaseFeaturesExtractor):
         # Pass flattened output through the fully-connected layer
         x = self.fc(x)
 
-        #conditionally apply the learning head on the output from the FC
-        if self.learning_head:
-            x = self.learning_head(x, actions=actions, test=test)
-
         return x
     
 class ImpalaCNNSmall(BaseFeaturesExtractor):
@@ -110,13 +94,7 @@ class ImpalaCNNSmall(BaseFeaturesExtractor):
         self,
         observation_space: gym.Space,
         features_dim: int = 256,
-        backbone_dim: int = 256,
-        vector_size_per_factor:int = 3,
-        expert_obs: gym.Space= None,
-        num_actions: int=3,
-        num_factors:int = None,
         normalized_image: bool = False,
-        learning_head:Optional[str]=None
     ) -> None:
         assert isinstance(observation_space, spaces.Box), (
             "ImpalaCNN must be used with a gym.spaces.Box ",
@@ -124,7 +102,6 @@ class ImpalaCNNSmall(BaseFeaturesExtractor):
         )
         super().__init__(observation_space, features_dim)
 
-        output_dims = expert_obs.high
         n_input_channels = observation_space.shape[0]
 
         # We assume CxHxW images (channels first)
@@ -154,14 +131,11 @@ class ImpalaCNNSmall(BaseFeaturesExtractor):
         with torch.no_grad():
             n_flatten = self.cnn(torch.as_tensor(observation_space.sample()[None]).float()).shape[1]
         
-        self.fc = nn.Linear(n_flatten, backbone_dim)
-
-        learning_heads = {'supervised': SupervisedLearner, 'ssl-cov':SelfSupervisedCovLearner, 'ssl-cov-ik':SelfSupervisedCovIKLearner, 'ssl-mask':SelfSupervisedMaskLearner, 'ssl-mask-reconst':SelfSupervisedMaskReconstrLearner}
-        self.learning_head = None if learning_head is None or learning_head not in learning_heads else learning_heads[learning_head](backbone_dim=backbone_dim, vector_size_per_factor=vector_size_per_factor, num_factors=output_dims if learning_head == 'supervised' else num_factors, num_actions = num_actions)
+        self.fc = nn.Linear(n_flatten, features_dim)
 
 
 
-    def forward(self, x:torch.Tensor, actions:torch.Tensor=None, test:bool=True)->torch.Tensor:
+    def forward(self, x:torch.Tensor)->torch.Tensor:
         # Pixel normalization (/255)
         x = x / 255.0
         
@@ -170,9 +144,5 @@ class ImpalaCNNSmall(BaseFeaturesExtractor):
 
         # Pass flattened output through the fully-connected layer
         x = self.fc(x)
-
-        #conditionally apply the learning head on the output from the FC
-        if self.learning_head:
-            x = self.learning_head(x, actions=actions, test=test)
 
         return x

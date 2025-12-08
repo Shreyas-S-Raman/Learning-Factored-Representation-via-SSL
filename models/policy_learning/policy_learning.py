@@ -102,9 +102,7 @@ class PolicyHead:
             return yaml.safe_load(file)
 
     def select_policy(self):
-        if self.model_config['learning_head'] == "supervised" or self.model_config['learning_head'].startswith('ssl'):
-            return DetatchedActorCriticPolicy
-        elif self.data_type == "image":
+        if self.data_type == "image":
             return "CnnPolicy"
         elif self.data_type == "expert":
             return "MlpPolicy"
@@ -157,6 +155,7 @@ class PolicyHead:
                 net_arch = dict(pi=self.model_config['ppo_policy_kwargs']['pi_dims'], vf=self.model_config['ppo_policy_kwargs']['vf_dims']),
                 features_extractor_class = ImpalaCNNSmall if len(self.parallel_train_env.observation_space.shape) > 1 else FlattenMLP,
                 features_extractor_kwargs = dict(features_dim = features_dim, backbone_dim=self.model_config['ppo_policy_kwargs']['backbone_dim'], 
+                projection_architecture = self.model_config['projection_architecture'],
                 vector_size_per_factor = self.model_config['vector_size_per_factor'], num_factors = self.model_config['num_factors'], 
                 expert_obs = expert_obs, learning_head = learning_head, num_actions=num_actions),
                 shared_feature_extractor = True
