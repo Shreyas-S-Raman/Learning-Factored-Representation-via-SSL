@@ -5,8 +5,8 @@ max_steps: 5000
 highlight: False
 reward_01: False
 
-#constant capturing all types of state attributes in the expert state
-state_attributes: [agent_pos, agent_dir, ball1_pos, ball1_color, box1_pos, box1_color, 'box1_full', 'box1_closed', ball2_pos, ball2_color, box2_pos, box2_color, 'box2_full', 'box2_closed', ball3_pos, ball3_color, box3_pos, box3_color, 'box3_full', 'box3_closed']
+# constant capturing all types of state attributes in the expert state
+state_attributes: [agent_pos, agent_dir, ball1_pos, ball1_color, box1_pos, box1_color, box1_full, box1_closed, ball2_pos, ball2_color, box2_pos, box2_color, box2_full, box2_closed, ball3_pos, ball3_color, box3_pos, box3_color, box3_full, box3_closed]
 state_attribute_types: {
   'agent_pos': ['coordinate_width', 'coordinate_height'], 
   'agent_dir':['agent_dir'], 

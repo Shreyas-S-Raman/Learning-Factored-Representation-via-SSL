@@ -25,7 +25,8 @@ from data.data_augmentor import DataAugmentor
 from data.utils.controlled_reset import CustomEnvReset
 from matplotlib import pyplot as plt
 from typing import Optional
-# from custom_env.blockeddoorkey import BlockedDoorKeyEnv
+from custom_env.blockeddoorkey import BlockedDoorKeyEnv
+from custom_env.ballsorting import BallSorting
 from gymnasium.envs.registration import register
 import argparse
 
@@ -113,7 +114,7 @@ class MiniGridDataGenerator(DataGenerator):
 
         super(MiniGridDataGenerator, self).__init__()
 
-        #register BlockedDoorKey to the environment list
+        # register BlockedDoorKey to the environment list
         register(
             id="MiniGrid-BlockedDoorKey-6x6",
             entry_point="data.custom_env.blockeddoorkey:BlockedDoorKeyEnv",
@@ -128,6 +129,18 @@ class MiniGridDataGenerator(DataGenerator):
             id="MiniGrid-BlockedDoorKey-16x16",
             entry_point="data.custom_env.blockeddoorkey:BlockedDoorKeyEnv",
             kwargs={"size": 16},
+        )
+
+        # register BallSorting to the environment list
+        register(
+            id="MiniGrid-BallSorting-8x8",
+            entry_point="data.custom_env.ballsorting:BallSortingEnv",
+            kwargs={"size":8, "num_boxes":3}
+        )
+        register(
+            id="MiniGrid-BallSorting-16x16",
+            entry_point="data.custom_env.ballsorting:BallSortingEnv",
+            kwargs={"size":16, "num_boxes":3}
         )
 
         # store configs from terminal input
