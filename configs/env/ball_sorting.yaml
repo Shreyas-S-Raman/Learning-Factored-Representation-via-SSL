@@ -1,0 +1,50 @@
+defaults:
+  - /shared/general
+environment_name: MiniGrid-BallSorting-16x16 #options: [MiniGrid-BallSorting-16x16, MiniGrid-BallSorting-8x8]
+max_steps: 8000
+highlight: False
+reward_01: False
+
+# constant capturing all types of state attributes in the expert state
+state_attributes: [agent_pos, agent_dir, holding_ball_color, ball_x_pos, ball_x_color, box_x_pos, box_x_color, box_x_full, box_x_closed]
+state_attribute_types: {
+  'agent_pos': ['coordinate_width', 'coordinate_height'], 
+  'agent_dir':['agent_dir'],
+  'holding_ball_color': ['holding_color'],
+  'ball_x_pos':['coordinate_width', 'coordinate_height'],
+  'box_x_pos':['coordinate_width', 'coordinate_height'],
+  'ball_x_color':['color'],
+  'box_x_color':['color'],
+  'box_x_full':['boolean'],
+  'box_x_closed':['boolean']}
+normalize_state: False
+num_boxes: 3
+#options: [agent_pos: [x,y], agent_dir: [int], goal_pos: [x,y], key_pos: [x,y], door_pos: [x,y], holding_key: true/false, door_locked: true/false, door_open: true/false]
+#agent_dir: 0 - right, 1 - down, 2 - left, 3 - up
+controlled_factors: {
+  agent_pos: [7,1], 
+  agent_dir: 0, 
+  holding_ball: null,
+  ball_1_pos: [6,1],
+  ball_2_pos: [2,2],
+  ball_3_pos: [5,5],
+  box_1_pos: [10,10],
+  box_2_pos: [0,0],
+  box_3_pos: [4, 5],
+  ball_1_color: 0,
+  ball_2_color: 1,
+  ball_3_color: 2,
+  box_1_color: 0,
+  box_2_color: 1,
+  box_3_color: 2,
+  box_1_full: 0,
+  box_2_full: 0,
+  box_3_full: 0,
+  box_1_closed: 0,
+  box_2_closed: 0,
+  box_3_closed: 0
+}
+
+data_generator:
+  _target_: data.data_generator.MiniGridDataGenerator
+  cfg: ${env} 
