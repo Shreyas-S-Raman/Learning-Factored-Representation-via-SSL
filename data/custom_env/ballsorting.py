@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from minigrid.core.grid import Grid
 from minigrid.core.world_object import WorldObj, Ball
-from minigrid.utils.rendering import fill_coords, point_in_rect
+from minigrid.utils.rendering import fill_coords, point_in_rect, point_in_circle
 from minigrid.core.actions import Actions
 from minigrid.core.constants import COLOR_NAMES, COLORS, OBJECT_TO_IDX, COLOR_TO_IDX
+from typing import Optional
+from minigrid.minigrid_env import MiniGridEnv
+from minigrid.core.mission import MissionSpace
 
 class ContainerBox(WorldObj):
     """
@@ -44,38 +48,42 @@ class ContainerBox(WorldObj):
         return (OBJECT_TO_IDX[self.type], COLOR_TO_IDX[self.color], state)
 
     def render(self, img):
-        box_color = COLORS[self.color]
-
-        # Main box body
-        fill_coords(img, point_in_rect(0.10, 0.90, 0.10, 0.90), box_color)
-
-        # Center window: shows empty/full
+        box_col = COLORS[self.color]
+        # Decide what "content color" is (what we want visible even when closed)
         if self.contains is None:
-            inner_color = (0, 0, 0)  # empty = black
+            content_col = (0, 0, 0)  # empty = black (or pick a gray)
         else:
-            inner_color = COLORS[self.contains.color]  # full = contained object's color
+            content_col = COLORS[self.contains.color]
 
-        # Central square window
-        fill_coords(img, point_in_rect(0.30, 0.70, 0.35, 0.75), inner_color)
+        # --- Base: box body (always) ---
+        # Outer body
+        fill_coords(img, point_in_rect(0.05, 0.95, 0.05, 0.95), box_col)
 
-        # Open/closed indicator band
-        # Use a light band color so it contrasts with box + window
-        band_color = (255, 255, 255)
+        # Optional: inner cavity background for contrast (helps readability)
+        # fill_coords(img, point_in_rect(0.20, 0.80, 0.20, 0.80), (0,0,0))
 
         if self.is_open:
-            # OPEN: vertical band in the center
-            fill_coords(
-                img,
-                point_in_rect(0.47, 0.53, 0.10, 0.90),
-                band_color,
-            )
-        else:
-            # CLOSED: diagonal band (top-left -> bottom-right)
-            def diag_band(x, y):
-                # Thin diagonal strip where y ≈ x + offset
-                return (y > x + 0.05) and (y < x + 0.15)
+            # =========================
+            # OPEN: show "ball" inside
+            # =========================
+            # draw border around ball in container
+            fill_coords(img, point_in_rect(0.15, 0.85, 0.15, 0.85), (0,0,0))
 
-            fill_coords(img, diag_band, band_color)
+            # Draw the contained object as a circle (big and obvious)
+            fill_coords(img, point_in_circle(0.50, 0.50, 0.30), content_col)
+
+        else:
+            # ==========================================
+            # CLOSED: thick vertical band shows contents
+            # plus colored side rails show box identity
+            # ==========================================
+
+            # create thick horizontal band upper and lower around center
+            fill_coords(img, point_in_rect(0.05, 0.95, 0.05, 0.30), box_col)
+            fill_coords(img, point_in_rect(0.05, 0.95, 0.70, 0.95), box_col)
+
+            # create thick horizontal band in CONTENT color (always visible)
+            fill_coords(img, point_in_rect(0.05, 0.95, 0.30, 0.70), content_col)
 
 class BallSortingEnv(MiniGridEnv):
     """
@@ -101,22 +109,19 @@ class BallSortingEnv(MiniGridEnv):
     def __init__(
         self,
         size: int = 8,
-        agent_start_pos=(1, 1),
-        agent_start_dir: int = 0,
         num_boxes: int = 3,
         max_steps: int | None = None,
         **kwargs,
     ):
-        self.agent_start_pos = agent_start_pos
-        self.agent_start_dir = agent_start_dir
-
         self.num_boxes = num_boxes
         self.box_colors = []  # filled in _gen_grid
         self.boxes: list[ContainerBox] = []
+        self.balls: list[Ball] = []
 
         mission_space = MissionSpace(mission_func=self._gen_mission)
         self.step_count = 0
         self.prev_correct = 0
+        self.carrying = None
 
         if max_steps is None:
             max_steps = (4 * size**2) * num_boxes
@@ -153,15 +158,14 @@ class BallSortingEnv(MiniGridEnv):
             self.boxes.append(box)
 
         # Place one ball per box color (not in boxes)
+        self.balls = []
         for c in self.box_colors:
-            self.place_obj(Ball(color=c))
+            ball = Ball(color=c)
+            self.balls.append(ball)
+            self.place_obj(ball)
 
         # Place the agent
-        if self.agent_start_pos is not None:
-            self.agent_pos = self.agent_start_pos
-            self.agent_dir = self.agent_start_dir
-        else:
-            self.place_agent()
+        self.place_agent()
 
         self.mission = "put balls into boxes with corresponding colors"
         # track previous correct balls to only reward progress
@@ -187,7 +191,8 @@ class BallSortingEnv(MiniGridEnv):
         fwd_pos = self.front_pos
         fwd_obj = self.grid.get(*fwd_pos)
         correct = self._count_correct()
-
+        info = {}
+        
         # TOGGLE: open/close box (no replacement)
         if action == Actions.toggle and isinstance(fwd_obj, ContainerBox):
             fwd_obj.toggle(self, fwd_pos)
@@ -214,7 +219,10 @@ class BallSortingEnv(MiniGridEnv):
             if fwd_obj.is_open and fwd_obj.contains is not None:
                 self.carrying, fwd_obj.contains = fwd_obj.contains, None
                 info = {"event": "pickup_from_box", "num_correct":correct}
-
+        # all other actions: default MiniGrid behavior
+        else:
+            obs, reward, terminated, truncated, info = super().step(action)
+        
         # Perform generic operations for observation
         obs = self.gen_obs()
         truncated = self.step_count >= self.max_steps
@@ -225,7 +233,6 @@ class BallSortingEnv(MiniGridEnv):
             self.prev_correct = correct
         else:
             reward = 0.0
-        # Everything else: default MiniGrid behavior
-        obs, reward, terminated, truncated, info = super().step(action)
+        
         self.step_count += 1
         return obs, reward, terminated, truncated, info

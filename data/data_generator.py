@@ -4,9 +4,11 @@
 
 from minigrid.minigrid_env import MiniGridEnv
 from minigrid.core.world_object import Door, Goal, Key, Box, Ball
+from minigrid.core.constants import COLOR_TO_IDX
 from minigrid.wrappers import ImgObsWrapper, FullyObsWrapper, ActionBonus, ObservationWrapper
 from collections.abc import Iterable
 from omegaconf import DictConfig, OmegaConf
+from itertools import chain
 import random
 import os
 import sys
@@ -15,7 +17,7 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 EXTERNAL_CARTPOLE = os.path.join(REPO_ROOT, "external", "cartpole_gen")
 if EXTERNAL_CARTPOLE not in sys.path:
     sys.path.append(EXTERNAL_CARTPOLE)
-import sunblaze_envs
+# import sunblaze_envs
 from PIL import Image
 import pdb
 import numpy as np
@@ -25,8 +27,8 @@ from data.data_augmentor import DataAugmentor
 from data.utils.controlled_reset import CustomEnvReset
 from matplotlib import pyplot as plt
 from typing import Optional
-from custom_env.blockeddoorkey import BlockedDoorKeyEnv
-from custom_env.ballsorting import BallSorting
+from data.custom_env.blockeddoorkey import BlockedDoorKeyEnv
+from data.custom_env.ballsorting import BallSortingEnv
 from gymnasium.envs.registration import register
 import argparse
 
@@ -200,7 +202,15 @@ class MiniGridDataGenerator(DataGenerator):
         
     def _create_expert_observation_space(self, state_attribute_types):
 
-        self.gym_space_params = {'boolean': (0, 1, int), 'coordinate_width': (0, self.env.grid.width, int), 'coordinate_height': (0, self.env.grid.height, int), 'agent_dir': (0, 3, int)}
+        self.gym_space_params = {
+            'boolean': (0, 1, int), 
+            'coordinate_width': (0, self.env.grid.width, int), 
+            'coordinate_height': (0, self.env.grid.height, int), 
+            'agent_dir': (0, 3, int),
+            'color': (min(COLOR_TO_IDX.values()), max(COLOR_TO_IDX.values()), int),
+            'holding_color': (min(COLOR_TO_IDX.values()), max(COLOR_TO_IDX.values())+1, int),
+        }
+        # NOTE: max value for color used to represent holding_color=None for ball sorting env
 
         relevant_state_variables = self.state_attributes
         min_values = np.array([]); max_values = np.array([])
@@ -208,6 +218,12 @@ class MiniGridDataGenerator(DataGenerator):
         for var in relevant_state_variables:
             types = state_attribute_types[var]  
 
+            if var in ['ball_x_pos', 'box_x_pos', 'ball_x_color', 'box_x_color', 'box_x_full', 'box_x_closed']:
+                for _ in range(self.env.unwrapped.num_boxes):
+                    for t in types:
+                        space_param = self.gym_space_params[t]
+                        min_values = np.append(min_values, space_param[0])
+                        max_values = np.append(max_values, space_param[1]) 
             if var == 'wall_gaps':
                 for _ in range(4):
                     for t in types:
@@ -298,7 +314,8 @@ class MiniGridDataGenerator(DataGenerator):
         
         info['is_success'] = reward > 0 and terminated
 
-        info['dist_goal'] = abs(state['agent_pos'][0]-state['goal_pos'][0]) + abs(state['agent_pos'][1]-state['goal_pos'][1])
+        if 'goal_pos' in state:
+            info['dist_goal'] = abs(state['agent_pos'][0]-state['goal_pos'][0]) + abs(state['agent_pos'][1]-state['goal_pos'][1])
 
         
         #NOTE: replace with 0-1 reward function -- avoid accumulation of discounted reward (very small when reaching the goal)
@@ -395,7 +412,7 @@ class MiniGridDataGenerator(DataGenerator):
                 state[attr] = tuple(self.env.unwrapped.grid.grid[np.where(types=='key')[0][0]].cur_pos)
                 
             elif ('key' not in types) and (attr == 'key_pos'):
-                state['key_pos'] = tuple(state['agent_pos'])
+                state[attr] = tuple(state['agent_pos'])
 
             elif ('door' in types) and (attr == 'door_pos'):
                 state[attr] = tuple(self.env.unwrapped.grid.grid[np.where(types=='door')[0][0]].cur_pos)
@@ -404,7 +421,7 @@ class MiniGridDataGenerator(DataGenerator):
             elif ('ball' in types) and (attr == 'ball_pos'):
                 state[attr] = tuple(self.env.unwrapped.grid.grid[np.where(types=='ball')[0][0]].cur_pos)
             elif ('ball' not in types) and (attr == 'ball_pos'):
-                state['ball_pos'] = tuple(state['agent_pos'])
+                state[attr] = tuple(state['agent_pos'])
 
             #other attributes like opening, holding, locked etc...
             elif (attr == 'holding_key'):
@@ -416,6 +433,8 @@ class MiniGridDataGenerator(DataGenerator):
             #other attributes like holding object (only for obstacle env)
             elif (attr == 'holding_ball'):
                 state[attr] = int(isinstance(self.env.unwrapped.carrying, Ball))
+            elif (attr=='holding_ball_color'):
+                state[attr] = COLOR_TO_IDX[self.env.unwrapped.carrying.color] if self.env.unwrapped.carrying else max(COLOR_TO_IDX.values())
             #walls attribute for shape of grid
             elif (attr == 'walls'):
                 state[attr] = list(np.where(types=='wall', 1, 0))
@@ -439,7 +458,28 @@ class MiniGridDataGenerator(DataGenerator):
                         gap_positions+=[x, mid_y]
 
                 state[attr] = tuple(gap_positions)
-
+            
+            elif attr in ['ball_x_pos','ball_x_color']:
+                ball_attributes = []
+                for ball in self.env.unwrapped.balls:
+                    if attr == 'ball_x_pos':
+                        ball_attributes += list(ball.cur_pos)
+                    elif attr == 'ball_x_color':
+                        ball_attributes.append(COLOR_TO_IDX[ball.color])
+                state[attr] = ball_attributes       
+            
+            elif attr in ['box_x_pos','box_x_color','box_x_full','box_x_closed']:
+                box_attributes = []
+                for box in self.env.unwrapped.boxes:
+                    if attr == 'box_x_pos':
+                        box_attributes += list(box.cur_pos)
+                    elif attr =='box_x_color':
+                        box_attributes.append(COLOR_TO_IDX[box.color])
+                    elif attr == 'box_x_full':
+                        box_attributes.append(int(bool(box.contains)))
+                    elif attr == 'box_x_closed':
+                        box_attributes.append(int(not box.is_open))
+                state[attr] = box_attributes
         norm_state_array = np.array([item for key in state.keys() for item in (state[key] if isinstance(state[key], Iterable) else [state[key]])])
         
         #construct normalized state array output
@@ -467,7 +507,6 @@ class CartPoleDataGenerator(DataGenerator):
         self.reward_01 = configs['reward_01']
 
         # Create the environment
-        pdb.set_trace()
         self.render_mode = 'rgb_array'
         self.env = gym.make(configs['environment_name'], render_mode=self.render_mode, max_episode_steps = configs['max_steps'])
         
@@ -1295,7 +1334,6 @@ class OGBenchDataGenerator(DataGenerator):
         return state, norm_state_array
         
 def build_data_generator(configs:DictConfig):
-    pdb.set_trace()
     if 'MiniGrid' in configs.environment_name:
         data_generator = MiniGridDataGenerator(cfg=configs)
     elif 'CartPole' in configs.environment_name and 'cartpole_physics_params' in configs:
@@ -1342,8 +1380,8 @@ if __name__ == '__main__':
 
     while step < max_steps:
 
-        # act = int(input('Action: '))
-        act = data_generator.action_space.sample()
+        act = int(input('Action: '))
+        # act = data_generator.action_space.sample()
 
         obs, rew, term, trunc, info = data_generator.step(act)
         

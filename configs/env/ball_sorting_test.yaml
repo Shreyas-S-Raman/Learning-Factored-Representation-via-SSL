@@ -1,57 +1,47 @@
 defaults:
   - /shared/general_test
-environment_name: MiniGrid-BallSort-16x16 #options: [MiniGrid-BallSort-16x16, MiniGrid-BallSort-8x8, MiniGrid-BallSort-6x6]
-max_steps: 5000
+environment_name: MiniGrid-BallSorting-16x16 #options: [MiniGrid-BallSorting-16x16, MiniGrid-BallSorting-8x8]
+max_steps: 8000
 highlight: False
 reward_01: False
 
 # constant capturing all types of state attributes in the expert state
-state_attributes: [agent_pos, agent_dir, ball1_pos, ball1_color, box1_pos, box1_color, box1_full, box1_closed, ball2_pos, ball2_color, box2_pos, box2_color, box2_full, box2_closed, ball3_pos, ball3_color, box3_pos, box3_color, box3_full, box3_closed]
+state_attributes: [agent_pos, agent_dir, holding_ball_color, ball_x_pos, ball_x_color, box_x_pos, box_x_color, box_x_full, box_x_closed]
 state_attribute_types: {
   'agent_pos': ['coordinate_width', 'coordinate_height'], 
-  'agent_dir':['agent_dir'], 
-  'ball1_pos':['coordinate_width', 'coordinate_height'],
-  'ball2_pos':['coordinate_width', 'coordinate_height'],
-  'ball3_pos':['coordinate_width', 'coordinate_height'],
-  'box1_pos':['coordinate_width', 'coordinate_height'],
-  'box2_pos':['coordinate_width', 'coordinate_height'],
-  'box3_pos':['coordinate_width', 'coordinate_height'],
-  'ball1_color':['color'],
-  'ball2_color':['color'],
-  'ball3_color':['color'],
-  'box1_color':['color'],
-  'box2_color':['color'],
-  'box3_color':['color'],
-  'box1_full':['boolean'],
-  'box2_full':['boolean'],
-  'box3_full':['boolean'],
-  'box1_closed':['boolean'],
-  'box2_closed':['boolean'],
-  'box3_closed': ['boolean']}
+  'agent_dir':['agent_dir'],
+  'holding_ball_color': ['holding_color'],
+  'ball_x_pos':['coordinate_width', 'coordinate_height'],
+  'box_x_pos':['coordinate_width', 'coordinate_height'],
+  'ball_x_color':['color'],
+  'box_x_color':['color'],
+  'box_x_full':['boolean'],
+  'box_x_closed':['boolean']}
 
 #options: [agent_pos: [x,y], agent_dir: [int], goal_pos: [x,y], key_pos: [x,y], door_pos: [x,y], holding_key: true/false, door_locked: true/false, door_open: true/false]
 #agent_dir: 0 - right, 1 - down, 2 - left, 3 - up
 controlled_factors: {
   agent_pos: [7,1], 
   agent_dir: 0, 
-  ball1_pos: [6,1],
-  ball2_pos: [2,2],
-  ball3_pos: [5,5],
-  box1_pos: [10,10],
-  box2_pos: [0,0],
-  box3_pos: [4, 5],
-  ball1_color: 0,
-  ball2_color: 1,
-  ball3_color: 2,
-  box1_color: 0,
-  box2_color: 1,
-  box3_color: 2,
-  box1_full: 0,
-  box2_full: 0,
-  box3_full: 0,
-  box1_closed: 0,
-  box2_closed: 0,
-  box3_closed: 0
+  holding_ball: null,
+  ball_1_pos: [6,1],
+  ball_2_pos: [2,2],
+  ball_3_pos: [5,5],
+  box_1_pos: [10,10],
+  box_2_pos: [0,0],
+  box_3_pos: [4, 5],
+  ball_1_color: 0,
+  ball_2_color: 1,
+  ball_3_color: 2,
+  box_1_color: 0,
+  box_2_color: 1,
+  box_3_color: 2,
+  box_1_full: 0,
+  box_2_full: 0,
+  box_3_full: 0,
+  box_1_closed: 0,
+  box_2_closed: 0,
+  box_3_closed: 0
 }
 
 #options: [random_rotation: [max_degrees, p], random_scaling: scalar, random_masking: [num_holes (min, max), hole_height_range (min, max), hole_width_range (min, max), probability], random_greyscale: probability, random_horz_flip: probability, random_vert_flip: probability, random_color_jitter: [brightness (min, max), contrast (min, max), saturation (min, max), hue (min, max), prob]]
