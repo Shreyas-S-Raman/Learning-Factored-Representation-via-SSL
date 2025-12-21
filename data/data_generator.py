@@ -137,12 +137,12 @@ class MiniGridDataGenerator(DataGenerator):
         register(
             id="MiniGrid-BallSorting-8x8",
             entry_point="data.custom_env.ballsorting:BallSortingEnv",
-            kwargs={"size":8, "num_boxes":3}
+            kwargs={"size":8, "num_boxes":cfg['num_boxes']}
         )
         register(
             id="MiniGrid-BallSorting-16x16",
             entry_point="data.custom_env.ballsorting:BallSortingEnv",
-            kwargs={"size":16, "num_boxes":3}
+            kwargs={"size":16, "num_boxes":cfg['num_boxes']}
         )
 
         # store configs from terminal input

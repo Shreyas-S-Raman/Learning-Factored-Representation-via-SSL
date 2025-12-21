@@ -18,7 +18,7 @@ state_attribute_types: {
   'box_x_full':['boolean'],
   'box_x_closed':['boolean']}
 normalize_state: False
-
+num_boxes: 3
 #options: [agent_pos: [x,y], agent_dir: [int], goal_pos: [x,y], key_pos: [x,y], door_pos: [x,y], holding_key: true/false, door_locked: true/false, door_open: true/false]
 #agent_dir: 0 - right, 1 - down, 2 - left, 3 - up
 controlled_factors: {
