@@ -47,7 +47,7 @@ class VisualRepresentationLearner(BaseFeaturesExtractor):
         # if needed define dreamer v2 style RSSM
         if obs_encoder.enable_rssm:
             raise NotImplementedError("to be implemented with DV2 updates")
-        
+
     def forward(self, x:torch.Tensor, actions:torch.Tensor=None, test:bool=True)->torch.Tensor:
         x = self.observation_encoder(x)
         x = self.linear_projection(x)

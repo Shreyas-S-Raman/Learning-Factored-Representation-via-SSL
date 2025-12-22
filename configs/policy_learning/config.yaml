@@ -14,9 +14,15 @@ reward_log_freq: 1000
 save_weight_freq: 50000
 wandb_log: false
 
-method: "visual"
-# options: visual, expert, barlow-twins, factored-graph, supervised, factored-vf, dv2, ssl-cov-ik, ssl-mask-reconst
+auxiliary_loss:
+  - train_every: 1000
+  - batch_size: 256
+  - aux_loss_updates: 2
 
+method: "visual"
+# options: visual, expert, barlow-twins, factored-graph, supervised, factored-vf, dreamerv2, ssl-cov-ik, ssl-mask-reconst
+algorithm: "a2c"
+# options: ppo, a2c, sac
 obs_encoder:
   encoder: "impala-large" # options: [for images -- impala-large, impala-small, nature; for vector -- mlp]
   enable_rssm: false

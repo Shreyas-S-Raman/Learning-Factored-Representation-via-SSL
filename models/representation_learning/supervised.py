@@ -3,9 +3,9 @@ from models.encoder_layers.nature_cnn import NatureCNN
 from models.representation_learning_utils.supervised import SupervisedLearningHead
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from typing import TYPE_CHECKING
+import torch
 if TYPE_CHECKING:
     import gymnasium as gym
-    import torch
 
 class SupervisedRepresentationLearner(BaseFeaturesExtractor):
 
@@ -48,8 +48,36 @@ class SupervisedRepresentationLearner(BaseFeaturesExtractor):
             expert_obs = expert_obs,
             projection_architecture = projection_architecture
         )
+
+        # define additional variables for auxiliary objective
+        self.loss_fn = torch.nn.CrossEntropyLoss()
+        self.optimizer = torch.optim.Adam(
+            self.model.policy.features_extractor.parameters(),
+            lr=self.learning_rate
+        )
         
     def forward(self, x:torch.Tensor, actions:torch.Tensor=None, test:bool=True)->torch.Tensor:
         x = self.observation_encoder(x)
         x = self.supervised_learning_head(x, test=test)
         return x
+    
+    def compute_loss(self, batch_dictionary):
+        # convert to tensors
+        observations = torch.as_tensor(batch_dictionary.observations).float().to(self.device)
+        # needs to be 1-hot encoded vectors for the label
+        labels = torch.as_tensor(batch_dictionary.labels).to(self.device)
+        
+        # forward pass
+        with torch.set_grad_enabled(True):
+            pred_features = self(observations, test=False)
+            loss = 0
+            accuracy = 0
+
+            for i, feat in enumerate(pred_features):
+                loss += self.loss_fn(feat, labels[:,i])
+                # get predicted class indices
+                preds = torch.argmax(feat, dim=1)
+                accuracy += (preds == labels[:,i]).float().mean()
+            loss /= (len(pred_features))
+            accuracy /= (len(pred_features))
+        return loss, {'accuracy': accuracy}
