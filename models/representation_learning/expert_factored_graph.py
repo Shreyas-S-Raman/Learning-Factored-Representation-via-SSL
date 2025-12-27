@@ -12,6 +12,7 @@ class FactoredGraphRepresentationLearner(BaseFeaturesExtractor):
         representation_vector: dict,
         projection_architecture: list,
         rssm_configs: dict,
+        optimizer_params: dict,
         observation_encoder_dim: int = 256,
         expert_obs: gym.Space= None,
         num_actions: int=3,

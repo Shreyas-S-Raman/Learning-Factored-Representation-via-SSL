@@ -15,6 +15,7 @@ class SupervisedRepresentationLearner(BaseFeaturesExtractor):
         representation_vector: dict,
         projection_architecture: list,
         rssm_configs: dict,
+        optimizer_params: dict,
         observation_encoder_dim: int = 256,
         expert_obs: gym.Space= None,
         num_actions: int=3,
@@ -44,17 +45,14 @@ class SupervisedRepresentationLearner(BaseFeaturesExtractor):
         self.supervised_learning_head = SupervisedLearningHead(
             observation_encoder_dim = observation_encoder_dim, 
             vector_size_per_factor = representation_vector.vector_size_per_factor,
-            num_factors = num_factors, 
+            num_factors = representation_vector.num_factors, 
             expert_obs = expert_obs,
             projection_architecture = projection_architecture
         )
 
         # define additional variables for auxiliary objective
         self.loss_fn = torch.nn.CrossEntropyLoss()
-        self.optimizer = torch.optim.Adam(
-            self.model.policy.features_extractor.parameters(),
-            lr=self.learning_rate
-        )
+        self.optimizer_params = optimizer_params
         
     def forward(self, x:torch.Tensor, actions:torch.Tensor=None, test:bool=True)->torch.Tensor:
         x = self.observation_encoder(x)
@@ -69,7 +67,7 @@ class SupervisedRepresentationLearner(BaseFeaturesExtractor):
         
         # forward pass
         with torch.set_grad_enabled(True):
-            pred_features = self(observations, test=False)
+            pred_features = self.forward(observations, test=False)
             loss = 0
             accuracy = 0
 
@@ -80,4 +78,12 @@ class SupervisedRepresentationLearner(BaseFeaturesExtractor):
                 accuracy += (preds == labels[:,i]).float().mean()
             loss /= (len(pred_features))
             accuracy /= (len(pred_features))
-        return loss, {'accuracy': accuracy}
+        return loss, {'accuracy': (accuracy, False)}
+
+    def build_optimizers(self):
+        return { 
+            'all': torch.optim.Adam(
+                self.parameters(),
+                **self.optimizer_params
+            )
+        }

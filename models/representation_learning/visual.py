@@ -15,6 +15,7 @@ class VisualRepresentationLearner(BaseFeaturesExtractor):
         representation_vector: dict,
         projection_architecture: list,
         rssm_configs: dict,
+        optimizer_params: dict,
         observation_encoder_dim: int = 256,
         expert_obs: gym.Space= None,
         num_actions: int=3,
@@ -35,13 +36,18 @@ class VisualRepresentationLearner(BaseFeaturesExtractor):
             features_dim=observation_encoder_dim,
             normalized_image=normalized_image
         )
-        layers = [nn.Linear(observation_encoder_dim, projection_architecture[0])]
-        for i in range(1, len(projection_architecture)):
+        layers = []
+        for i in range(0, len(projection_architecture)):
             layers.append(nn.ReLU())
+            from_dim = observation_encoder_dim if i==0 else projection_architecture[i-1]
             layers.append(
-                nn.Linear(projection_architecture[i-1], projection_architecture[i])
+                nn.Linear(from_dim, projection_architecture[i])
             )
-        layers.append(projection_architecture[-1], representation_vector.vector_size_per_factor*representation_vector.num_factors)
+        layers.append(nn.ReLU())
+        layers.append(nn.Linear(
+            observation_encoder_dim if i==0 else projection_architecture[-1],
+            representation_vector.num_factors*representation_vector.vector_size_per_factor
+        ))
         self.linear_projection = nn.Sequential(*layers)
 
         # if needed define dreamer v2 style RSSM

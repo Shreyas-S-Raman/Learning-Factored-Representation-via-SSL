@@ -4,9 +4,10 @@ from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from typing import TYPE_CHECKING
 import torch.nn as nn
 from copy import copy
+import torch
 if TYPE_CHECKING:
     import gymnasium as gym
-    import torch
+    
 
 class CURLRepresentationLearner(BaseFeaturesExtractor):
 
@@ -16,6 +17,7 @@ class CURLRepresentationLearner(BaseFeaturesExtractor):
         representation_vector: dict,
         projection_architecture: list,
         rssm_configs: dict,
+        optimizer_params: dict,
         observation_encoder_dim: int = 256,
         expert_obs: gym.Space= None,
         num_actions: int=3,
@@ -64,18 +66,60 @@ class CURLRepresentationLearner(BaseFeaturesExtractor):
             representation_vector.vector_size_per_factor*representation_vector.num_factors,
             representation_vector.vector_size_per_factor*representation_vector.num_factors
         )
-        
+
+        # define additional variables for auxiliary objective
+        self.loss_fn = torch.nn.CrossEntropyLoss()
+        self.optimizer_params = optimizer_params
+    
+    def curl_crop(self, x, output_size=84):
+        # x: (B, C, H, W)
+        _, _, H, W = x.shape
+
+        # This is built-in: returns random (top, left, height, width)
+        i, j, h, w = T.RandomCrop.get_params(
+            img=torch.zeros(H, W),  # dummy, only shape matters
+            output_size=(output_size, output_size),
+        )
+
+        # Apply SAME crop to all images
+        return x[:, :, i:i+h, j:j+w]
+
     def forward(self, x:torch.Tensor, actions:torch.Tensor=None, test:bool=True)->torch.Tensor:
         x = self.observation_encoder(x)
-
         if test:
             x = self.query_proj(self.observation_query_encoder(x))
-            return x
         # only during training time: crop images and perform bilinear product to get logits & labels
         else:
-            z_query = self.query_proj(self.observation_query_encoder(x))
-            z_key = self.key_proj(self.observation_key_encoder(x)).detach()
+            x = self.key_proj(self.observation_key_encoder(x)).detach()
+        return x
+    
+    def compute_loss(self, batch_dictionary):
+        # convert to tensors
+        observations = torch.as_tensor(batch_dictionary.observations).float().to(self.device)
+        obs_query = self.curl_crop(observations)
+        obs_key = self.curl_crop(observations)
+        # forward pass
+        with torch.set_grad_enabled(True):
+            z_query = self.forward(obs_query, test=True)
+            z_key = self.forward(obs_key, test=False)
             logits = torch.matmul(z_query, torch.matmul(self.W, z_key.T))
             logits = logits - torch.max(logits, axis=1)
-            return logits, torch.arange(logits.shape[0])
+            labels = torch.arange(logits.shape[0])
+            loss = self.loss_fn(logits, labels)
+            accuracy = torch.sum(logits==labels)/logits.shape[0]
+        return loss, {'accuracy': (accuracy, False), 'W': (self.W.weight.cpu(), True)}
+    
+    def build_optimizers(self):
+        fq_params = list(self.observation_query_encoder.parameters()) \
+              + list(self.query_proj.parameters())
         
+        return { 
+            'query_function': torch.optim.Adam(
+                fq_params,
+                **self.optimizer_params
+            ),
+            'W': torch.optim.Adam(
+                self.W.parameters(),
+                **self.optimizer_params
+            )
+        }

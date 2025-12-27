@@ -32,6 +32,7 @@ from models.representation_learning.expert import ExpertRepresentationLearner
 from models.representation_learning.expert_factored_graph import FactoredGraphRepresentationLearner
 from models.representation_learning.factored_vf import FactoredVFLearner
 from models.representation_learning.supervised import SupervisedRepresentationLearner
+from models.representation_learning.barlow_twins import BarlowTwinsRepresentationLearner
 from models.policy_head.custom_callbacks import CustomEvalCallback, CustomVideoRecorder, RewardValueCallback, ValuePlottingCallback, AuxiliaryLossCallback, AdvantageLoggerCallback, InitializeLogsCallback
 
 REPRESENTATION_LEARNERS = {
@@ -39,7 +40,8 @@ REPRESENTATION_LEARNERS = {
     'expert': ExpertRepresentationLearner,
     'factored-graph': FactoredGraphRepresentationLearner,
     'factored-vf': FactoredVFLearner,
-    'supervised': SupervisedRepresentaionLearner,
+    'supervised': SupervisedRepresentationLearner,
+    'barlow-twins': BarlowTwinsRepresentationLearner,
 }
 
 class PolicyHead:
@@ -144,15 +146,15 @@ class PolicyHead:
         num_actions = int(self.dummy_env.action_space.n)
         
         # set the appropriate output dim
-        learning_head = self.model_config['method']
-        if learning_head == 'visual' or learning_head == 'expert' or learning_head == 'factored-graph':
-            features_dim = self.model_config['ppo_policy_kwargs']['backbone_dim']
-        elif learning_head == 'supervised' or learning_head == 'dreamerv2':
-            features_dim = len(expert_obs.high)
-        elif 'ssl' in learning_head:
-            features_dim = self.model_config['num_factors'] * self.model_config['vector_size_per_factor']
-        else:
-            raise NotImplementedError()
+        # learning_head = self.model_config['method']
+        # if learning_head == 'visual' or learning_head == 'expert' or learning_head == 'factored-graph':
+        #     features_dim = self.model_config['ppo_policy_kwargs']['backbone_dim']
+        # elif learning_head == 'supervised' or learning_head == 'dreamerv2':
+        #     features_dim = len(expert_obs.high)
+        # elif 'ssl' in learning_head:
+        #     features_dim = self.model_config['num_factors'] * self.model_config['vector_size_per_factor']
+        # else:
+        #     raise NotImplementedError()
 
         # retrieve the relevant representation learning class
         representation_learner = REPRESENTATION_LEARNERS[self.model_config['method']]
@@ -162,7 +164,7 @@ class PolicyHead:
             representation_vector=self.model_config.representation_vector,
             projection_architecture=self.model_config.projection_architecture,
             rssm_configs=self.model_config.rssm_configs,
-            observation_encoder_dim = features_dim,
+            observation_encoder_dim = self.model_config.representation_vector.observation_encoder_dim,
             expert_obs= expert_obs,
             num_actions=num_actions
         )
@@ -247,6 +249,7 @@ class PolicyHead:
             num_envs=self.model_config['num_parallel_envs'],
             train_every = self.model_config['auxiliary_loss']['train_every'],
             batch_size = self.model_config['auxiliary_loss']['batch_size'],
+            learning_rate = self.model_config['auxiliary_loss']['learning_rate'],
             aux_loss_updates = self.model_config['auxiliary_loss']['aux_loss_updates'],
             verbose = 0
         )

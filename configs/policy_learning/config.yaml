@@ -18,6 +18,7 @@ auxiliary_loss:
   - train_every: 1000
   - batch_size: 256
   - aux_loss_updates: 2
+  - learning_rate: 0.0002
 
 method: "visual"
 # options: visual, expert, barlow-twins, factored-graph, supervised, factored-vf, dreamerv2, ssl-cov-ik, ssl-mask-reconst
@@ -31,7 +32,6 @@ representation_vector:
   observation_encoder_dim: 256
   num_factors: 64
   vector_size_per_factor: 4
-
 projection_architecture: [128, 128]
 
 ppo_configs:
