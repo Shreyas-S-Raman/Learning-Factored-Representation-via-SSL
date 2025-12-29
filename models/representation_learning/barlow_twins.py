@@ -33,8 +33,7 @@ class BarlowTwinsRepresentationLearner(BaseFeaturesExtractor):
             'impala-small': ImpalaCNNSmall,
             'nature': NatureCNN
         }
-        self.observation_encoder = observation_encoders[obs_encoder.encoder]
-        self.observation_encoder(
+        self.observation_encoder = observation_encoders[obs_encoder.encoder](
             observation_space=observation_space,
             features_dim=observation_encoder_dim,
             normalized_image=normalized_image
@@ -131,6 +130,9 @@ class BarlowTwinsRepresentationLearner(BaseFeaturesExtractor):
             ), 
             trust_coefficient = self.optimizer_params.trust_coefficient)
         }
+    
+    def post_step(self):
+        return {}
 
 
 

@@ -427,13 +427,14 @@ class _AuxRingBuffer:
     def __len__(self):
         return len(self.data)
 
-    def add(self, obs, next_obs, action=None, done=None, info=None):
+    def add(self, obs, next_obs, action=None, done=None, info=None, labels=None):
         self.data.append({
             "obs": obs,
             "next_obs": next_obs,
             "action": action,
             "done": done,
             "info": info,
+            "labels": labels
         })
 
     def sample(self, batch_size: int, device: torch.device):
@@ -672,7 +673,7 @@ class AuxiliaryLossCallback(BaseCallback):
     def _init_callback(self) -> None:
         self.data_buffer = _AuxRingBuffer(capacity=self.buffer_capacity)
         self.optimier_dict = self.model.policy.feature_extractor.build_optimizers()
-
+       
     def log_heatmap(self, matrix, key_name, step):
         fig, ax = plt.subplots()
         sns.heatmap(matrix.detach().cpu().numpy(), ax=ax, cmap="viridis", cbar=True)
@@ -693,9 +694,12 @@ class AuxiliaryLossCallback(BaseCallback):
         actions = self.locals.get("actions", None)
         dones = self.locals.get("dones", None)
         infos = self.locals.get("infos", None)
-        sublisted_expert_state = list(self.locals['infos'][env]['state_dict'].values())
-        labels = torch.Tensor([item for sublist in sublisted_expert_state for item in (sublist if isinstance(sublist, tuple) else [sublist])]).to(torch.int64)
-                
+        labels = []
+        for i in range(len(infos)):
+            sublisted_expert_state = list(self.locals['infos'][i]['state_dict'].values())
+            labels.append(
+                torch.Tensor([item for sublist in sublisted_expert_state for item in (sublist if isinstance(sublist, tuple) else [sublist])]).to(torch.int64)
+            )  
 
         # Normalize infos to list-of-dicts (vec env) or [dict] (single env)
         if infos is None:
@@ -722,13 +726,13 @@ class AuxiliaryLossCallback(BaseCallback):
             n_envs = len(infos)
 
             for i in range(n_envs):
-                self.aux_buffer.add(
+                self.data_buffer.add(
                     obs=_at(obs, i),
                     next_obs=_at(next_obs, i),
                     action=_at(actions, i),
                     done=_at(dones, i),
                     info=infos[i] if i < len(infos) else None,
-                    labels=labels
+                    labels=_at(labels, i)
                 )
 
         # ----------------------------
@@ -745,15 +749,20 @@ class AuxiliaryLossCallback(BaseCallback):
         self.steps_since_update += 1
         device = self.model.device
 
+        feature_extractor = self.model.policy.feature_extractor
+
         for _ in range(self.aux_loss_updates):
             batch = self.aux_buffer.sample(self.batch_size, device=device)
-            total_loss, specific_metrics = self.model.policy.feature_extractor.compute_loss(batch)
+            total_loss, specific_metrics = feature_extractor.compute_loss(batch)
 
             for _, optimizer in self.optimizer_dict.items():
                 optimizer.zero_grad(set_to_none=True)
             total_loss.backward()
             for _, optimizer in self.optimizer_dict.items():
                 optimizer.step()
+            if hasattr(feature_extractor, "post_step") and callable(feature_extractor.aux_post_step):
+                post_step_metrics = feature_extractor.post_step()
+            specific_metrics = specific_metrics | post_step_metrics
 
             # logging all metrics
             self.logger.record(f"custom/{self.custom_name}/loss", float(total_loss.detach().cpu().item()))

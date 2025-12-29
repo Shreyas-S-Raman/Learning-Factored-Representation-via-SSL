@@ -16,9 +16,7 @@ wandb_log: false
 
 auxiliary_loss:
   - train_every: 1000
-  - batch_size: 256
   - aux_loss_updates: 2
-  - learning_rate: 0.0002
 
 method: "visual"
 # options: visual, expert, barlow-twins, factored-graph, supervised, factored-vf, dreamerv2, ssl-cov-ik, ssl-mask-reconst
@@ -27,6 +25,37 @@ algorithm: "a2c"
 obs_encoder:
   encoder: "impala-large" # options: [for images -- impala-large, impala-small, nature; for vector -- mlp]
   enable_rssm: false
+
+optimizer_params:
+  barlow-twins:
+    lr: 0.2
+    lr_decay: 0.001
+    batch_size: 256
+    weight_decay: 1.5e-6
+    eps: 1.0e-9
+    warmup_epochs: 10
+  curl:
+    lr: 1.0e-4
+    batch_size: 32
+    betas: [0.9, 0.999]
+    weight_decay: 0.0
+    eps: 1.5e-5
+    momentum: 0.001
+  supervised:
+    lr: 2.0e-3
+    batch_size: 256
+    betas: [0.9, 0.999]
+    weight_decay: 0.0
+    eps: 1.0e-8
+  factored-graph:
+    lr: 5.0e-4
+    batch_size: 256
+  factored-vf:
+    lr: 0.0001
+    batch_size: 32
+    alpha: 0.99
+    eps: 1.0e-5
+    momentum: 0.0
 
 representation_vector:
   observation_encoder_dim: 256

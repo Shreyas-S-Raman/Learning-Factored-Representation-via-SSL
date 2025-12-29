@@ -32,3 +32,6 @@ class FactoredGraphRepresentationLearner(BaseFeaturesExtractor):
     def forward(self, x:torch.Tensor, actions:torch.Tensor=None, test:bool=True)->torch.Tensor:
         # NOTE: we do not apply any transformation or mapping observations, expert representation directly passed to PPO
         return x
+
+    def post_step(self):
+        return {}
