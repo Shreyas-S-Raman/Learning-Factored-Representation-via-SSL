@@ -2,6 +2,7 @@ from models.encoder_layers.impala_cnn import ImpalaCNNLarge, ImpalaCNNSmall
 from models.encoder_layers.nature_cnn import NatureCNN
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from typing import TYPE_CHECKING
+import torchvision.transforms as T
 import torch.nn as nn
 import copy
 import torch
@@ -87,9 +88,9 @@ class CURLRepresentationLearner(BaseFeaturesExtractor):
         return x[:, :, i:i+h, j:j+w]
 
     def forward(self, x:torch.Tensor, actions:torch.Tensor=None, test:bool=True)->torch.Tensor:
+        # separating representation learning from receiving critic loss
         if test:
             x = self.query_proj(self.observation_query_encoder(x)).detach()
-        # only during training time: crop images and perform bilinear product to get logits & labels
         else:
             x = self.query_proj(self.observation_query_encoder(x))
         return x
@@ -117,17 +118,24 @@ class CURLRepresentationLearner(BaseFeaturesExtractor):
         return loss, {'accuracy': (accuracy, False), 'W': (self.W.weight.cpu(), True)}
     
     def build_optimizers(self):
+
+        optim_kwargs = {
+            "lr": self.optimizer_params.get("lr",1e-4),
+            "betas": tuple(self.optimizer_params.get("betas", (0.9, 0.999))),
+            "weight_decay": self.optimizer_params.get("weight_decay", 0.0),
+            "eps": self.optimizer_params.get("eps", 1e-8),
+        }
         fq_params = list(self.observation_query_encoder.parameters()) \
               + list(self.query_proj.parameters())
         
         return { 
             'query_function': torch.optim.Adam(
                 fq_params,
-                **self.optimizer_params
+                **optim_kwargs
             ),
             'W': torch.optim.Adam(
                 self.W.parameters(),
-                **self.optimizer_params
+                **optim_kwargs
             )
         }
     

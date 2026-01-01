@@ -2,7 +2,7 @@
 defaults:
   - _self_
 
-
+log_wandb: false
 num_models: 3
 num_parallel_envs: 4 # NOTE: log freqs have to be divisible by num_parallel_envs 
 train_interval: 4000000
@@ -12,7 +12,6 @@ video_length: 200
 video_log_freq: 20000
 reward_log_freq: 1000
 save_weight_freq: 50000
-wandb_log: false
 
 auxiliary_loss:
   - train_every: 1000
@@ -29,11 +28,14 @@ obs_encoder:
 optimizer_params:
   barlow-twins:
     lr: 0.2
-    lr_decay: 0.001
     batch_size: 256
+    momentum: 0.9
     weight_decay: 1.5e-6
+    trust_coefficient: 0.001
     eps: 1.0e-9
+    clip: false
     warmup_epochs: 10
+    lr_scale: 0.001
   curl:
     lr: 1.0e-4
     batch_size: 32

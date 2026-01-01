@@ -1,5 +1,6 @@
 defaults:
   - /shared/general
+testfile: cartpole_gen_test.yaml
 environment_name: CartPole-v1 #options: [SunblazeCartPole-v0, SunblazeCartPoleRandomNormal-v0, SunblazeCartPoleRandomExtreme-v0]
 max_steps: 500
 reward_01: False

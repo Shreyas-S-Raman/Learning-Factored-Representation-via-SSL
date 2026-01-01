@@ -46,6 +46,7 @@ class BarlowTwinsRepresentationLearner(BaseFeaturesExtractor):
             )
         layers.append(projection_architecture[-1], representation_vector.vector_size_per_factor*representation_vector.num_factors)
         self.linear_projection = nn.Sequential(*layers)
+        
         # if needed define dreamer v2 style RSSM
         if obs_encoder.enable_rssm:
             raise NotImplementedError("to be implemented with DV2 updates")
@@ -124,13 +125,24 @@ class BarlowTwinsRepresentationLearner(BaseFeaturesExtractor):
         return loss, {'cross_correlation': (c, True), 'on_diag': (on_diag, False), 'on_diag_loss': (on_diag_loss, False), 'off_diag_loss': (off_diag_loss, False)}
 
     def build_optimizers(self):
-        return {
-            'all': apex.optimizers.LARS(torch.optim.SGD(
-                **self.optimizer_params
-            ), 
-            trust_coefficient = self.optimizer_params.trust_coefficient)
-        }
+        # lr scaling used in paper
+        lr = self.optimizer_params["lr"] * (self.optimizer_params["batch_size"] / 256.0)
+        sgd = torch.optim.SGD(
+            self.parameters(),
+            lr=lr,
+            momentum= self.optimizer_params.get("momentum", 0.9),
+            weight_decay= self.optimizer_params.get("weight_decay", 1.5e-6),
+        )
+        opt = apex.optimizers.LARS(
+            optimizer=sgd,
+            trust_coefficient= self.optimizer_params.get("trust_coefficient", 0.001),
+            eps= self.optimizer_params.get("eps", 1e-9),
+            clip= self.optimizer_params.get("clip", False),
+        )
+        return {"all": opt}
     
+    def setup_schedule(self):
+
     def post_step(self):
         return {}
 

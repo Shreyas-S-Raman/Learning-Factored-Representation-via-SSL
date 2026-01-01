@@ -80,10 +80,16 @@ class SupervisedRepresentationLearner(BaseFeaturesExtractor):
         return loss, {'accuracy': (accuracy, False)}
 
     def build_optimizers(self):
+        optim_kwargs = {
+            "lr": self.optimizer_params.get("lr",1e-4),
+            "betas": tuple(self.optimizer_params.get("betas", (0.9, 0.999))),
+            "weight_decay": self.optimizer_params.get("weight_decay", 0.0),
+            "eps": self.optimizer_params.get("eps", 1e-8),
+        }
         return { 
             'all': torch.optim.Adam(
                 self.parameters(),
-                **self.optimizer_params
+                **optim_kwargs
             )
         }
 

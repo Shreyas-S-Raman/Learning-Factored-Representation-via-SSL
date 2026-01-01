@@ -1281,7 +1281,6 @@ class OGBenchDataGenerator(DataGenerator):
         return state, norm_state_array
         
 def build_data_generator(configs:DictConfig):
-    pdb.set_trace()
     if 'MiniGrid' in configs.environment_name:
         data_generator = MiniGridDataGenerator(cfg=configs)
     elif 'CartPole' in configs.environment_name and 'cartpole_physics_params' in configs:
