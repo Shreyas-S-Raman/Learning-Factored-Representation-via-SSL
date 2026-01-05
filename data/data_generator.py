@@ -1,7 +1,3 @@
-# import gym_minigrid
-# from gym_minigrid.wrappers import  FullyObsWrapper
-# from gym_minigrid.wrappers import ImgObsWrapper
-
 from minigrid.minigrid_env import MiniGridEnv
 from minigrid.core.world_object import Door, Goal, Key, Box, Ball
 from minigrid.wrappers import ImgObsWrapper, FullyObsWrapper, ActionBonus, ObservationWrapper
@@ -1285,7 +1281,7 @@ def build_data_generator(configs:DictConfig):
         data_generator = MiniGridDataGenerator(cfg=configs)
     elif 'CartPole' in configs.environment_name and 'cartpole_physics_params' in configs:
         data_generator = CartPoleDataGenerator(cfg=configs)
-    elif 'CartPole' in configs.environment_name:
+    elif 'CartPole' in configs.environment_name and 'multi_cartpole' in configs.testfile:
         data_generator = MultiCartPoleDataGenerator(cfg=configs)
     elif 'scene' in configs.environment_name:
         data_generator = OGBenchDataGenerator(cfg=configs)

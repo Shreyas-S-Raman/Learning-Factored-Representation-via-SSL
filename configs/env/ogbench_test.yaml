@@ -1,5 +1,6 @@
 defaults:
   - /shared/general_test
+  - _self_
 environment_name: place-cube #options: [scene-play, place-cube, place-cube-reset]
 max_steps: 1000000
 

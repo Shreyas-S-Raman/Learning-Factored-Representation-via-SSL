@@ -1,32 +1,20 @@
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 import yaml
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from stable_baselines3 import PPO, A2C, SAC
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.torch_layers import NatureCNN, FlattenExtractor
-from models.utils.impala_cnn import ImpalaCNNLarge, ImpalaCNNSmall
-from models.utils.flatten_mlp import FlattenMLP
-from detached_actor_critic import DetatchedActorCriticPolicy
-from stable_baselines3.common.vec_env import SubprocVecEnv, VecTransposeImage
-import numpy as np
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecTransposeImage, VecVideoRecorder, VecNormalize
+from stable_baselines3.common.callbacks import CallbackList, CheckpointCallback
 
+import torch
 from data.data_generator import build_data_generator
 from omegaconf import OmegaConf
+from hydra import initialize_config_dir, compose
 import pdb
-from stable_baselines3.common.callbacks import CallbackList, CheckpointCallback
-from stable_baselines3.common.vec_env import VecVideoRecorder, VecNormalize
-import imageio
-from torch.utils.tensorboard import SummaryWriter
 import gymnasium as gym
-import torch
-from matplotlib import pyplot as plt
-import re
-import pandas as pd
 import wandb
-
 import argparse
-import pdb
 
 from models.representation_learning.visual import VisualRepresentationLearner
 from models.representation_learning.expert import ExpertRepresentationLearner
@@ -46,16 +34,24 @@ REPRESENTATION_LEARNERS = {
 }
 
 class PolicyHead:
-    def __init__(self, env_config_filename, seed=None):
-        self.model_config = self.load_config(os.path.join(os.path.dirname(__file__), '../../configs/policy_learning/config.yaml'))
-        self.data_config = self.load_config(os.path.join(os.path.dirname(__file__), '../../env/', data_config_path))
-        self.test_data_config = self.load_config(os.path.join(os.path.dirname(__file__), '../../env/', self.data_config.testfile))
+    def __init__(self, env_config_filename:str, method:str, seed:int=None):
+        # setup root dir for configs
+        self.config_root = os.path.join(os.path.dirname(__file__), "../../configs")
+        self.model_config = self.load_config('policy_learning/config')
+        
+        # update method and seed within model configs
+        OmegaConf.set_readonly(self.model_config, False)
+        self.model_config.method = method
+        if seed is not None:
+            self.model_config.seed = seed
+        OmegaConf.set_readonly(self.model_config, True)
+        self.seed = self.model_config.seed
+        
+        self.data_config = self.load_config(f'env/{env_config_filename}')
+        self.test_data_config = self.load_config(f'env/{self.data_config.testfile}')
         self.algorithm = self.model_config['algorithm']
         self.data_type = self.data_config['observation_space']
         self.policy_name = self.select_policy()
-
-        #set the seed in order to create argparsable separate runs for each seed
-        self.seed = self.model_config['seed'] if seed is None else seed
 
         self.parallel_train_env = VecVideoRecorder(
             self.create_parallel_envs(seed = self.seed, merged_config=self.data_config),
@@ -64,9 +60,9 @@ class PolicyHead:
             video_length=self.model_config['video_length'], 
             name_prefix=self.policy_name
         )
-        self.valid_env = self.create_parallel_envs(seed = self.seed, merged_config=self.data_config)
-        self.eval_env = self.create_parallel_envs(seed = self.seed, merged_config=self.test_data_config)
-        self.dummy_env = self.create_env(seed=self.seed, merged_config=self.data_config)()
+        self.valid_env = self.create_parallel_envs(merged_config=self.data_config, seed = self.seed)
+        self.eval_env = self.create_parallel_envs(merged_config=self.test_data_config, seed = self.seed)
+        self.dummy_env = self.create_env(merged_config=self.data_config, seed=self.seed)()
         self.model = self.create_models(seed=self.seed)
 
         #check that critical configs for test and train are equal 
@@ -75,32 +71,11 @@ class PolicyHead:
         assert (self.parallel_train_env.observation_space == self.eval_env.observation_space), \
             f"ERROR: observaiton type {self.parallel_train_env.observation_space} and environment {self.eval_env.observation_space} need to be same for train and eval configs"
 
-    def linear_schedule(self, initial_value: float):
-        """
-        Linear learning rate schedule.
-
-        :param initial_value: Initial learning rate.
-        :return: schedule that computes
-        current learning rate depending on remaining progress
-        """
-        def func(progress_remaining: float) -> float:
-            """
-            Progress will decrease from 1 (beginning) to 0.
-
-            :param progress_remaining:
-            :return: current learning rate
-            """
-            return progress_remaining * initial_value
-
-        return func
-
-    def load_config(self, config_path):
-        configs = OmegaConf.load(config_path)
-        if 'test' in config_path:
-            general_configs = OmegaConf.load('./configs/shared/general_test.yaml')
-        else:
-            general_configs = OmegaConf.load('./configs/shared/general.yaml')
-        configs = OmegaConf.merge(general_configs, configs)
+    def load_config(self, config_name):
+        with initialize_config_dir(config_dir=self.config_root, version_base=None):
+            cfg = compose(config_name=config_name)
+        OmegaConf.resolve(cfg)
+        OmegaConf.set_readonly(cfg, True)
         return configs
 
     def select_policy(self):
@@ -111,7 +86,7 @@ class PolicyHead:
         else:
             raise ValueError(f"Unsupported data type: {self.data_type}")
     
-    def create_env(self, seed = None, merged_config:OmegaConf):
+    def create_env(self, merged_config:OmegaConf, seed = None):
         def _init():
             env = Monitor(
                 build_data_generator(configs=merged_config)
@@ -125,7 +100,7 @@ class PolicyHead:
     def create_parallel_envs(self, merged_config:OmegaConf, seed: int=0, num_parallel=None):
         if num_parallel is None:
             num_parallel = self.model_config['num_parallel_envs']
-        vecenv = SubprocVecEnv([self.create_env(seed, merged_config) for _ in range(num_parallel)])
+        vecenv = SubprocVecEnv([self.create_env(merged_config, seed) for _ in range(num_parallel)])
         
         #add self transposition to (C, H, W) if image observation space
         if len(vecenv.observation_space.shape) > 1:
@@ -256,11 +231,13 @@ if __name__ == '__main__':
     args = argparse.ArgumentParser()
     args.add_argument('--seed', type=int, default=0)
     args.add_argument('--env_config_filename', '-f', type=str, default=None)
+    args.add_argument('--method', '-m', type=str, default=None)
     args = args.parse_args()
     
     policy_head = PolicyHead( 
-        env_config_filename=args.env_config_filename
-        seed=args.seed
+        env_config_filename=args.env_config_filename,
+        seed=args.seed,
+        method=args.method
     )
     policy_head.train_and_evaluate_policy()
     
