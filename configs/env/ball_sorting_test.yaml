@@ -1,5 +1,6 @@
 defaults:
   - /shared/general_test
+  - _self_
 environment_name: MiniGrid-BallSorting-16x16 #options: [MiniGrid-BallSorting-16x16, MiniGrid-BallSorting-8x8]
 max_steps: 8000
 highlight: False
