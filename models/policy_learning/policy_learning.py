@@ -114,6 +114,12 @@ class PolicyHead:
         
         # retrieve the relevant representation learning class
         representation_learner = REPRESENTATION_LEARNERS[self.model_config['method']]
+        
+        # compute the total number of scheduler invocations (for lr schedulers)
+        total_scheduler_steps = self.model_config.train_interval/self.model_config.train_every\
+            * self.model_config.auxiliary_loss.aux_loss_updates
+        self.model_config.optimizer_params.get(self.model_config['method']).total_scheduler_steps = total_scheduler_steps
+        
         features_extractor_kwargs = dict(
             observation_space = self.dummy_env.observation_space,
             obs_encoder=self.model_config.obs_encoder,

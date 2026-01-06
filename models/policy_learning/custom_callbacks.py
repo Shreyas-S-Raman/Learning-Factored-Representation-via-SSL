@@ -670,11 +670,9 @@ class AuxiliaryLossCallback(BaseCallback):
     def _init_callback(self) -> None:
         self.data_buffer = _AuxRingBuffer(capacity=self.buffer_capacity)
         self.optimizer_dict = self.model.policy.feature_extractor.build_optimizers()
-        self.lr_scheduler = self.model.policy.feature_extractor.setup_scheduler()\
-            if hasattr('setup_scheduler', self.model.policy.feature_extractor) else\
-                None
-        self.schedulers = {k: self.model.policy.feature_extractor.setup_schedule(opt)\ 
-        for k, opt in self.optimizer_dict.items()}
+        self.schedulers = {k: self.model.policy.feature_extractor.setup_schedules(opt)\ 
+        if hasattr(self.model.policy.feature_extractor, 'setup_schedules') else None\
+        for k, opt in self.optimizer_dict.items()} 
 
     def log_heatmap(self, matrix, key_name, step):
         fig, ax = plt.subplots()
@@ -763,14 +761,11 @@ class AuxiliaryLossCallback(BaseCallback):
             for _, optimizer in self.optimizer_dict.items():
                 optimizer.step()
             for sch in self.schedulers.values():
-                sch.step()
+                if sch:
+                    sch.step()
             if hasattr(feature_extractor, "post_step") and callable(feature_extractor.aux_post_step):
                 post_step_metrics = feature_extractor.post_step()
             specific_metrics = specific_metrics | post_step_metrics
-
-            # run lr scheduler if it exists
-            if self.lr_schedule:
-                self.lr_schedule.step()
 
             # logging all metrics
             self.logger.record(f"custom/{self.custom_name}/loss", float(total_loss.detach().cpu().item()))

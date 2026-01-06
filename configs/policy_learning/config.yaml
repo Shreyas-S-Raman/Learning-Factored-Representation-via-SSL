@@ -26,6 +26,7 @@ obs_encoder:
   enable_rssm: false
 
 optimizer_params:
+  # note: total number of times callback run computed on the fly in policy_learning.py (train_interval/train_every * aux_loss_updates)
   barlow-twins:
     lr: 0.2
     batch_size: 256
@@ -34,8 +35,8 @@ optimizer_params:
     trust_coefficient: 0.001
     eps: 1.0e-9
     clip: false
-    warmup_epochs: 10
-    lr_scale: 0.001
+    warmup_scheduler_steps: 32000 # note: warmup for 10 epochs converted to steps for RL regime
+    final_lr_scale: 0.001
   curl:
     lr: 1.0e-4
     batch_size: 32

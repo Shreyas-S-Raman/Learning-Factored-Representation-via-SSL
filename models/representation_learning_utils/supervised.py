@@ -1,3 +1,4 @@
+from __future__ import annotations
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -38,13 +39,13 @@ class SupervisedLearningHead(nn.Module):
         if test:
             x = self.expert_scale_proj(x)
             x = x.reshape(x.shape[0], self.num_factors, self.vector_size_per_factor)
-            x = [torch.argmax(fc_proj(x[:,i,:]), axis=-1)  if self.discrete_state[i] else fc_proj([:,i,:]) for i, fc_proj in enumerate(self.expert_distribution_proj)]
+            x = [torch.argmax(fc_proj(x[:,i,:]), axis=-1)  if self.discrete_state[i] else fc_proj(x[:,i,:]) for i, fc_proj in enumerate(self.expert_distribution_proj)]
             
         #if in train mode: used for SL representation learning  ==> then do not detach computation and do not take argmax
         else:
             x = self.expert_scale_proj(x)
             x = x.reshape(x.shape[0], self.num_factors, self.vector_size_per_factor)
-            x = [self.softmax(fc_proj(x[:,i,:])) if self.discrete_state[i] else fc_proj([:,i,:]) for i, fc_proj in enumerate(self.expert_distribution_proj)]
+            x = [self.softmax(fc_proj(x[:,i,:])) if self.discrete_state[i] else fc_proj(x[:,i,:]) for i, fc_proj in enumerate(self.expert_distribution_proj)]
         
         return x
 
