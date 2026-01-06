@@ -1,3 +1,4 @@
+from __future__ import annotations
 from models.encoder_layers.impala_cnn import ImpalaCNNLarge, ImpalaCNNSmall
 from models.encoder_layers.nature_cnn import NatureCNN
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from torch import nn
 import gymnasium as gym
@@ -6,8 +7,6 @@ from stable_baselines3.common.preprocessing import get_flattened_obs_dim
 import pdb
 import torch.nn.functional as F
 from typing import Optional
-from models.learning_head.self_supervised_head import SelfSupervisedCovLearner, SelfSupervisedMaskLearner
-from models.learning_head.supervised_head import SupervisedLearner
 
 class FlattenMLP(BaseFeaturesExtractor):
     """

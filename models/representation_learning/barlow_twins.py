@@ -1,3 +1,4 @@
+from __future__ import annotations
 from models.encoder_layers.impala_cnn import ImpalaCNNLarge, ImpalaCNNSmall
 from models.encoder_layers.nature_cnn import NatureCNN
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
@@ -5,7 +6,9 @@ import torch.nn as nn
 import torch
 import torchvision.transforms as T
 from torchvision.transforms import InterpolationMode
+from torch.optim.lr_scheduler import LambdaLR
 import apex
+import math
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import gymnasium as gym
@@ -140,9 +143,27 @@ class BarlowTwinsRepresentationLearner(BaseFeaturesExtractor):
             clip= self.optimizer_params.get("clip", False),
         )
         return {"all": opt}
-    
-    def setup_schedule(self):
 
+    def setup_schedules(self, optimizer):
+        cfg = self.optimizer_params
+        warmup_steps = int(cfg.get("warmup_scheduler_steps", 0))
+        total_steps = int(cfg["total_scheduler_steps"])
+        final_scale = float(cfg.get("final_lr_scale", 0.001))  # 1/1000
+
+        def lr_lambda(step: int):
+            # --- linear warmup ---
+            if warmup_steps > 0 and step < warmup_steps:
+                return (step + 1) / warmup_steps
+
+            # --- cosine decay ---
+            progress = (step - warmup_steps) / max(1, total_steps - warmup_steps)
+            progress = min(max(progress, 0.0), 1.0)
+
+            cosine = 0.5 * (1 + math.cos(math.pi * progress))
+            return final_scale + (1 - final_scale) * cosine
+
+        return LambdaLR(optimizer, lr_lambda)
+        
     def post_step(self):
         return {}
 

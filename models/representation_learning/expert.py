@@ -1,3 +1,4 @@
+from __future__ import annotations
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:

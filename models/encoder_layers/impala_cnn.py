@@ -1,11 +1,11 @@
+from __future__ import annotations
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from typing import TYPE_CHECKING, Optional
 from gymnasium import spaces
 from stable_baselines3.common.preprocessing import is_image_space
 import torch
 import torch.nn as nn
-# from models.learning_head.self_supervised_head import SelfSupervisedCovLearner, SelfSupervisedMaskLearner, SelfSupervisedCovIKLearner, SelfSupervisedMaskReconstrLearner
-# from models.learning_head.supervised_head import SupervisedLearner
+
 if TYPE_CHECKING:
     import gymnasium as gym
 
