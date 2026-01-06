@@ -33,6 +33,11 @@ REPRESENTATION_LEARNERS = {
     'barlow-twins': BarlowTwinsRepresentationLearner,
 }
 
+'''
+Example Usage
+python3 -m models.policy_learning.policy_learning -e blocked_doorkey.yaml -m visual
+'''
+
 class PolicyHead:
     def __init__(self, env_config_filename:str, method:str, seed:int=None):
         # setup root dir for configs
@@ -236,7 +241,7 @@ class PolicyHead:
 if __name__ == '__main__':
     args = argparse.ArgumentParser()
     args.add_argument('--seed', type=int, default=0)
-    args.add_argument('--env_config_filename', '-f', type=str, default=None)
+    args.add_argument('--env_config_filename', '-e', type=str, default=None)
     args.add_argument('--method', '-m', type=str, default=None)
     args = args.parse_args()
     

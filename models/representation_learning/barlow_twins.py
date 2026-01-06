@@ -1,17 +1,17 @@
 from __future__ import annotations
+import math
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    import gymnasium as gym
 from models.encoder_layers.impala_cnn import ImpalaCNNLarge, ImpalaCNNSmall
 from models.encoder_layers.nature_cnn import NatureCNN
+from models.representation_learning_utils.barlow_twins import LARS
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 import torch.nn as nn
 import torch
 import torchvision.transforms as T
 from torchvision.transforms import InterpolationMode
 from torch.optim.lr_scheduler import LambdaLR
-import apex
-import math
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    import gymnasium as gym
     
 class BarlowTwinsRepresentationLearner(BaseFeaturesExtractor):
 
@@ -136,7 +136,7 @@ class BarlowTwinsRepresentationLearner(BaseFeaturesExtractor):
             momentum= self.optimizer_params.get("momentum", 0.9),
             weight_decay= self.optimizer_params.get("weight_decay", 1.5e-6),
         )
-        opt = apex.optimizers.LARS(
+        opt = LARS(
             optimizer=sgd,
             trust_coefficient= self.optimizer_params.get("trust_coefficient", 0.001),
             eps= self.optimizer_params.get("eps", 1e-9),
