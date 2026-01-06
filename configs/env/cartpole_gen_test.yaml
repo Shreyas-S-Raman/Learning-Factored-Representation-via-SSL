@@ -1,5 +1,6 @@
 defaults:
   - /shared/general_test
+  - _self_
 environment_name: SunblazeCartPoleRandomNormal-v0 ##options: [SunblazeCartPole-v0, SunblazeCartPoleRandomNormal-v0, SunblazeCartPoleRandomExtreme-v0]
 max_steps: 500
 reward_01: False

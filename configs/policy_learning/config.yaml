@@ -1,45 +1,91 @@
 
 defaults:
-  - env: blocked_doorkey
   - _self_
 
-policy_head:
-  algorithm: "PPO"
-  num_models: 3
-  num_parallel_envs: 4 #NOTE: log freqs have to be divisible by num_parallel_envs 
-  train_interval: 4000000
-  num_eval_eps: 10
-  verbose: true
-  video_length: 200
-  video_log_freq: 20000
-  reward_log_freq: 1000
-  save_weight_freq: 50000
-  wandb_log: false
-  normalize: true
-  representation_head: null 
-  # options 
-  # [raw, expert, supervised, dreamerv2, factored-vf, factored-mask, ssl-cov, ssl-mask, ssl-mask-reconst, ssl-cov-ik]
+log_wandb: false
+num_models: 3
+num_parallel_envs: 4 # NOTE: log freqs have to be divisible by num_parallel_envs 
+train_interval: 4000000
+num_eval_eps: 10
+verbose: true
+video_length: 200
+video_log_freq: 20000
+reward_log_freq: 1000
+save_weight_freq: 50000
 
-  # configs only for supervised and ssl methods
+auxiliary_loss:
+  - train_every: 1000
+  - aux_loss_updates: 2
+
+method: "visual"
+# options: visual, expert, barlow-twins, factored-graph, supervised, factored-vf, dreamerv2, ssl-cov-ik, ssl-mask-reconst
+algorithm: "a2c"
+# options: ppo, a2c, sac
+obs_encoder:
+  encoder: "impala-large" # options: [for images -- impala-large, impala-small, nature; for vector -- mlp]
+  enable_rssm: false
+
+optimizer_params:
+  # note: total number of times callback run computed on the fly in policy_learning.py (train_interval/train_every * aux_loss_updates)
+  barlow-twins:
+    lr: 0.2
+    batch_size: 256
+    momentum: 0.9
+    weight_decay: 1.5e-6
+    trust_coefficient: 0.001
+    eps: 1.0e-9
+    clip: false
+    warmup_scheduler_steps: 32000 # note: warmup for 10 epochs converted to steps for RL regime
+    final_lr_scale: 0.001
+  curl:
+    lr: 1.0e-4
+    batch_size: 32
+    betas: [0.9, 0.999]
+    weight_decay: 0.0
+    eps: 1.5e-5
+    momentum: 0.001
+  supervised:
+    lr: 2.0e-3
+    batch_size: 256
+    betas: [0.9, 0.999]
+    weight_decay: 0.0
+    eps: 1.0e-8
+  factored-graph:
+    lr: 5.0e-4
+    batch_size: 256
+  factored-vf:
+    lr: 0.0001
+    batch_size: 32
+    alpha: 0.99
+    eps: 1.0e-5
+    momentum: 0.0
+
+representation_vector:
+  observation_encoder_dim: 256
+  num_factors: 64
   vector_size_per_factor: 4
-  num_factors: 10
+projection_architecture: [128, 128]
 
-  ppo_policy_kwargs:
-    pi_dims: [64, 128]
-    vf_dims: [64, 128]
-    backbone_dim: 256
-  ppo:
-    # n_steps: 200
-    # n_epochs: 10
-    learning_rate: 0.0003
-    # batch_size: 400
-    gamma: 0.99
-    # gae_lambda: 0.95
-    # clip_range: 0.15
-    # clip_range_vf: 0.65
-    # normalize_advantage: True
-    ent_coef: 0.01
-    # max_grad_norm: 0.5
-    target_kl: null
-    verbose: null
-    seed: null
+ppo_configs:
+  normalize: true
+
+  ppo_architecture:
+    pi_dims: [64, 128, 256]
+    vf_dims: [64, 128, 256]
+  n_steps: 200
+  n_epochs: 10
+  learning_rate: 0.0003
+  batch_size: 400
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.15
+  clip_range_vf: 0.65
+  normalize_advantage: True
+  ent_coef: 0.01
+  max_grad_norm: 0.5
+  target_kl: null
+  verbose: null
+  seed: null
+
+dv2_configs:
+  test: false

@@ -1,5 +1,7 @@
 defaults:
   - /shared/general
+  - _self_
+test: ogbench_test.yaml
 environment_name: scene-play #options: [scene-play, place-cube, place-cube-reset]
 max_steps: 1000000
 

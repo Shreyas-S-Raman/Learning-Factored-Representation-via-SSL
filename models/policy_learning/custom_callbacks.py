@@ -1,11 +1,9 @@
-"""
-some copied from EvalCallback. modified by waymao
-"""
 import os
 from stable_baselines3.common.callbacks import BaseCallback, EvalCallback, sync_envs_normalization
 from stable_baselines3.common.evaluation import evaluate_policy
 from models.policy_head.vec_video_recorder import VecVideoRecorder
-
+from collections import deque
+from types import SimpleNamespace
 import numpy as np
 from gymnasium import error, logger
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvStepReturn
@@ -48,12 +46,13 @@ class AdvantageLoggerCallback(BaseCallback):
         return True
         
     def _on_rollout_end(self):
-        advantages = self.model.rollout_buffer.advantages
-        mean_adv = advantages.mean()
-        std_adv = advantages.std()
-        
-        self.logger.record("advantage/adv_mean", mean_adv)
-        self.logger.record("advantage/adv_std", std_adv)
+        if 'advantages' in dir(self.model.rollout_buffer):
+            advantages = self.model.rollout_buffer.advantages
+            mean_adv = advantages.mean()
+            std_adv = advantages.std()
+            
+            self.logger.record("advantage/adv_mean", mean_adv)
+            self.logger.record("advantage/adv_std", std_adv)
 
 class CustomVideoRecorder(VecVideoRecorder):
 
@@ -120,6 +119,7 @@ class CustomEvalCallback(EvalCallback):
         self.std_evaluations_results = []
         self.mean_evaluations_length = []
         self.std_evaluations_length = []
+        self.best_mean_reward = float('-inf')
 
     def _on_training_start(self) -> None:
         # Force log at step 0
@@ -345,7 +345,6 @@ class ValuePlottingCallback(BaseCallback):
     def _on_training_end(self):
         plt.close()
 
-
 class RewardValueCallback(BaseCallback):
     def __init__(self, env: gym.Env, save_freq: int, log_dir: str, csv_log_dir: str, num_envs:int, verbose=0, train=True):
         super(RewardValueCallback, self).__init__(verbose)
@@ -417,493 +416,129 @@ class RewardValueCallback(BaseCallback):
     def _on_training_end(self):
         self.writer.close()
 
+class _AuxRingBuffer:
+    def __init__(self, capacity: int):
+        self.capacity = capacity
+        self.data = deque(maxlen=capacity)
 
-class SelfSupervisedMaskEncoderCallback(BaseCallback):
-    """
-    Callback for training the encoder with a supervised objective
-    directly using PPO's rollout buffer.
-    """
-    def __init__(
-        self, 
-        custom_name: str,
-        update_freq: int = 256,
-        batch_size: int = 256,
-        learning_rate: float = 5e-5,
-        alpha_frob: float = 0.6,
-        alpha_reconstr: float = 0.4,
-        verbose: int = 0,
-    ):
-        super(SelfSupervisedMaskEncoderCallback, self).__init__(verbose)
-        self.update_freq = update_freq//4
-        self.batch_size = batch_size
-        self.learning_rate = learning_rate
-        self.steps_since_update = 0
+    def __len__(self):
+        return len(self.data)
 
-        #custom naming for logged metric (i.e. loss)
-        self.custom_name = custom_name
+    def add(self, obs, next_obs, action=None, done=None, info=None, labels=None):
+        self.data.append({
+            "obs": obs,
+            "next_obs": next_obs,
+            "action": action,
+            "done": done,
+            "info": info,
+            "labels": labels
+        })
 
-        #store all the weights for loss function
-        self.alpha_frob = alpha_frob
-        self.alpha_reconstr = alpha_reconstr
-        
-    def _init_callback(self) -> None:
-        
-        #defin the loss function to use during training
-        self.reconstr_loss = torch.nn.MSELoss()
-        
-        # Bring the features_extractor to the right device and create an optimizer for the model
-        self.model.policy.features_extractor.to(self.model.device)
-        self.optimizer = torch.optim.Adam(
-            self.model.policy.features_extractor.parameters(),
-            lr=self.learning_rate
-        )
+    def sample(self, batch_size: int, device: torch.device):
+        idx = np.random.choice(len(self.data), size=batch_size, replace=False)
+        samples = [self.data[i] for i in idx]
 
-        #store buffer of expert state and observation
-        self.observation_buffer = []
-        
-    def _on_step(self) -> bool:
-        self.steps_since_update += 1
-        
-        # Perform supervised update at specified frequency
-        # and only after buffer has been filled at least once
-        if (self.steps_since_update >= self.update_freq and 
-            hasattr(self.model, 'rollout_buffer') and 
-            self.model.rollout_buffer is not None):
-            
-            self._update_features_extractor_from_buffer()
-            self.steps_since_update = 0
-            self.observation_buffer = []
+        def to_tensor(x):
+            # x may be numpy/torch/scalar
+            if isinstance(x, torch.Tensor):
+                return x
+            return torch.as_tensor(x)
+
+        def stack(items):
+            if isinstance(items[0], dict):
+                return {k: stack([it[k] for it in items]) for k in items[0].keys()}
+            ts = [to_tensor(it) for it in items]
+            return torch.stack(ts, dim=0).to(device)
+
+        obs_b = stack([s["obs"] for s in samples])
+        next_obs_b = stack([s["next_obs"] for s in samples])
+
+        # Optional fields with safe defaults
+        if samples[0]["action"] is None:
+            actions_b = None
         else:
-            for env in range(len(self.locals['infos'])):
-                self.observation_buffer.append(torch.Tensor(self.locals['infos'][env]['obs']).permute(2, 0, 1))
-            
-        return True
-    
-    def _update_features_extractor_from_buffer(self):
-        """Train the encoder using data from PPO's rollout buffer"""
-        #in case there are no observations in observation buffer, skip
-        if len(self.observation_buffer) == 0:
-            return 
-        
-        observations = torch.stack(self.observation_buffer)
-        buffer_size = len(observations)
-        
-        # Convert to tensors
-        observations = torch.as_tensor(observations).float().to(self.model.device)
-        
-        
-        # Forward pass
-        with torch.set_grad_enabled(True):
-            curr_obs_pred, next_obs_pred, mask = self.model.policy.features_extractor(observations, test=False)
-            
-            #loss 1: batch covariance close to identity (i.e. Frobenius Norm or Barlow Twins like)
-            identity = torch.eye(mask.shape[0], device=self.model.device)
-            frob_loss = torch.norm(mask.T@mask - identity, p='fro')
+            actions_b = stack([s["action"] for s in samples])
 
-            #loss 2: state-transition prediction i.e. future state construction
-            #NOTE: skip first obs in obs_tensor since we cannot forecast that
-            reconstr_loss = self.reconstr_loss(curr_obs_pred[1:], next_obs_pred)
-            
-            total_loss = self.alpha_frob  * frob_loss/frob_loss.detach() + self.alpha_reconstr * reconstr_loss/reconstr_loss.detach()
-
-        # backward pass and optimization
-        self.optimizer.zero_grad()
-        total_loss.backward()
-        self.optimizer.step()
-        
-        # log the loss during training features extractor
-        self.logger.record(f"self-supervised/{self.custom_name}/loss", float(total_loss.item()))
-        self.logger.record(f"self-supervised/{self.custom_name}/frob_loss", float(frob_loss.item()))
-        self.logger.record(f"self-supervised/{self.custom_name}/reconstr_loss", float(reconstr_loss.item()))
-
-
-class SelfSupervisedMaskReconstrEncoderCallback(BaseCallback):
-    """
-    Callback for training the encoder with a supervised objective
-    directly using PPO's rollout buffer.
-    """
-    def __init__(
-        self, 
-        custom_name: str,
-        update_freq: int = 256,
-        batch_size: int = 256,
-        learning_rate: float = 5e-5,
-        alpha_frob: float = 0.5,
-        lambda_non_diag: float = 0.5,
-        lambda_diag: float = 0.5,
-        alpha_same: float = 0.25,
-        alpha_diff: float = 0.25,
-        verbose: int = 0,
-    ):
-        super(SelfSupervisedMaskReconstrEncoderCallback, self).__init__(verbose)
-        self.update_freq = update_freq//4
-        self.batch_size = batch_size
-        self.learning_rate = learning_rate
-        self.steps_since_update = 0
-
-        #custom naming for logged metric (i.e. loss)
-        self.custom_name = custom_name
-
-        #store all the weights for loss function
-        self.alpha_frob = alpha_frob
-        self.alpha_same = alpha_same
-        self.alpha_diff = alpha_diff
-
-        #store sub-weights for sparsity loss
-        self.lambda_non_diag = lambda_non_diag
-        self.lambda_diag = lambda_diag
-        
-    def _init_callback(self) -> None:
-        
-        #defin the loss function to use during training
-        self.reconstr_loss = torch.nn.CrossEntropyLoss()
-        
-        # Bring the features_extractor to the right device and create an optimizer for the model
-        self.model.policy.features_extractor.to(self.model.device)
-        self.optimizer = torch.optim.Adam(
-            self.model.policy.features_extractor.parameters(),
-            lr=self.learning_rate
-        )
-
-        #store buffer of expert state and observation
-        self.observation_buffer = []
-        self.action_buffer = []
-        
-    def _on_step(self) -> bool:
-        self.steps_since_update += 1
-        
-        # Perform supervised update at specified frequency
-        # and only after buffer has been filled at least once
-        if (self.steps_since_update >= self.update_freq and 
-            hasattr(self.model, 'rollout_buffer') and 
-            self.model.rollout_buffer is not None):
-            
-            self._update_features_extractor_from_buffer()
-            self.steps_since_update = 0
-            self.observation_buffer = []
-            self.action_buffer = []
+        if samples[0]["done"] is None:
+            dones_b = None
         else:
-            for env in range(len(self.locals['infos'])):
-                self.observation_buffer.append(torch.Tensor(self.locals['infos'][env]['obs']).permute(2, 0, 1))
-                self.action_buffer.append(self.locals['infos'][env]['action'])
-        return True
+            dones_b = stack([s["done"] for s in samples]).reshape(batch_size, -1)
 
-    def log_heatmap(self, matrix, key_name, step):
-        fig, ax = plt.subplots()
-        sns.heatmap(matrix.detach().cpu().numpy(), ax=ax, cmap="viridis", cbar=True)
+        infos_b = [s["info"] for s in samples]
 
-        # Use wandb directly here — self.logger cannot log images
-        wandb.log({key_name: wandb.Image(fig)}, step=step)
-        plt.close(fig)
-    
-    def _update_features_extractor_from_buffer(self):
-        """Train the encoder using data from PPO's rollout buffer"""
-        #in case there are no observations in observation buffer, skip
-        if len(self.observation_buffer) == 0:
-            return 
-                
-        observations = torch.stack(self.observation_buffer)
-        actions = torch.Tensor(self.action_buffer)
-        buffer_size = len(observations)
-        
-        # Convert to tensors
-        observations = torch.as_tensor(observations).float().to(self.model.device)
-        actions = torch.as_tensor(actions, dtype=torch.long).to(self.model.device)[:-1]
-
-        
-        # Forward pass
-        with torch.set_grad_enabled(True):
-            mask, same_state, diff_state = self.model.policy.features_extractor(observations, actions=actions, test=False)
-            
-            self.log_heatmap(mask, key_name="self-supervised/mask", steps=self.num_timesteps)
-            #loss 1: batch covariance close to identity (i.e. Frobenius Norm or Barlow Twins like)
-            # identity = torch.eye(mask.shape[0], device=self.model.device)
-            # frob_loss = torch.norm(mask.T@mask - identity, p='fro')
-            diag_sum = torch.trace(mask)
-            total_sum = torch.sum(mask)
-            non_diag_sum = total_sum - diag_sum
-            frob_loss = self.lambda_non_diag*non_diag_sum + self.lambda_diag*((1-diag_sum)**2)
-
-            #loss 2: state-transition prediction i.e. successive or not successive states
-            #NOTE: skip first obs in obs_tensor since we cannot forecast that
-            same_label = torch.ones((same_state.shape[0], ), device=self.model.device, dtype=torch.long) 
-            reconstr_same = self.reconstr_loss(same_state, same_label)
-            same_acc = sum((torch.argmax(reconstr_same, axis=-1) == same_label).float())/same_state.shape[0]
-
-            #loss 3: state-transition prediction i.e. successive or not successive states
-            diff_label = torch.zeros((diff_state.shape[0], ), device=self.model.device, dtype=torch.long) 
-            reconstr_diff = self.reconstr_loss(diff_state, diff_label)
-            diff_acc = sum((torch.argmax(reconstr_diff, axis=-1) == same_label).float())/diff_state.shape[0]
-        
-            total_loss = self.alpha_frob  * frob_loss/frob_loss.detach() + self.alpha_same * reconstr_same/reconstr_same.detach() +  self.alpha_diff * reconstr_diff/reconstr_diff.detach()
-
-        # backward pass and optimization
-        self.optimizer.zero_grad()
-        total_loss.backward()
-        self.optimizer.step()
-        
-        # log the loss during training features extractor
-        self.logger.record(f"self-supervised/{self.custom_name}/loss", float(total_loss.item()))
-        self.logger.record(f"self-supervised/{self.custom_name}/frob_loss", float(frob_loss.item()))
-        self.logger.record(f"self-supervised/{self.custom_name}/same_loss", float(reconstr_same.item()))
-        self.logger.record(f"self-supervised/{self.custom_name}/diff_loss", float(reconstr_diff.item()))
-        self.logger.record(f"self-supervised/{self.custom_name}/same_acc", float(same_acc.item()))
-        self.logger.record(f"self-supervised/{self.custom_name}/diff_acc", float(diff_acc.item()))
+        return SimpleNamespace(
+            observations=obs_b,
+            next_observations=next_obs_b,
+            actions=actions_b,
+            dones=dones_b,
+            infos=infos_b,
+        )
 
 
-class SelfSupervisedCovIKEncoderCallback(BaseCallback):
-    """
-    Callback for training the encoder with a supervised objective
-    directly using PPO's rollout buffer.
-    """
+    '''
+    Callback for training custom auxiliary losses for encoders directly using SAC's
+    replay buffer 
+    '''
     def __init__(
         self, 
         custom_name: str,
-        update_freq: int = 512,
-        batch_size: int = 512,
-        learning_rate: float = 8e-4,
-        alpha_frob: float = 0.5,
-        lambda_non_diag: float = 0.5,
-        lambda_diag: float = 0.5,
-        alpha_ik: float = 0.25,
-        alpha_diff: float = 0.25,
+        num_envs: int,
+        train_every: int = 256,
+        batch_size: int = 256,
+        aux_loss_updates: int = 3,
         verbose: int = 0,
     ):
-        super(SelfSupervisedCovIKEncoderCallback, self).__init__(verbose)
-        self.update_freq = update_freq//4
-        self.batch_size = batch_size
-        self.learning_rate = learning_rate
-        self.steps_since_update = 0
-
+        super(CustomLossCallback, self).__init__(verbose)
         #custom naming for logged metric (i.e. loss)
         self.custom_name = custom_name
+        self.batch_size = batch_size
+        self.train_every = train_every//num_envs
+        self.aux_loss_updates = aux_loss_updates
+        self.steps_since_update = 0
 
-        #store all the weights for loss function
-        self.alpha_frob = alpha_frob
-        self.alpha_ik = alpha_ik
-        self.alpha_diff = alpha_diff
-
-        #store sub-weights for sparsity loss
-        self.lambda_non_diag = lambda_non_diag
-        self.lambda_diag = lambda_diag
-        
-    def _init_callback(self) -> None:
-        
-        # Bring the features_extractor to the right device and create an optimizer for the model
-        self.model.policy.features_extractor.to(self.model.device)
-        
-        #defin the loss function to use during training
-        self.action_pred_loss = torch.nn.CrossEntropyLoss()
-
-        self.optimizer = torch.optim.Adam(
-            self.model.policy.features_extractor.parameters(),
-            lr=self.learning_rate
-        )
-
+    
+    def _init_callback(self) -> None:    
         #store buffer of expert state and observation
         self.observation_buffer = []
-        self.action_buffer = []
     
     def log_heatmap(self, matrix, key_name, step):
         fig, ax = plt.subplots()
         sns.heatmap(matrix.detach().cpu().numpy(), ax=ax, cmap="viridis", cbar=True)
-
         # Use wandb directly here — self.logger cannot log images
         wandb.log({key_name: wandb.Image(fig)}, step=step)
         plt.close(fig)
 
-    def _on_step(self) -> bool:
+    def _on_step(self)->bool:
         self.steps_since_update += 1
-        
-        # Perform supervised update at specified frequency
-        # and only after buffer has been filled at least once
-        if (self.steps_since_update >= self.update_freq and 
-            hasattr(self.model, 'rollout_buffer') and 
-            self.model.rollout_buffer is not None):
-            self._update_features_extractor_from_buffer()
-            self.steps_since_update = 0
-            self.observation_buffer = []
-            self.action_buffer = []
 
+        if (self.steps_since_update >= self.update_freq 
+            and len(self.replay_buffer) >= max(self.batch_size, self.train_every)
+            and 'compute_loss' in dir(self.model)):
+            for _ in range(self.aux_loss_updates):
+                batch = replay_buffer.sample(self.batch_size, env=self.model._vec_normalize_env)
+                # batch usually has: observations, next_observations, actions, rewards, dones
+                total_loss, specific_losses = self.encoder.compute_loss(batch)
+                # backpropagate the loss function
+                self.model.features_extractor_class.optimizer.zero_grad(set_to_none=True)
+                total_loss.backward()
+                self.model.features_extractor_class.optimizer.step()
+                
+                # log the loss during training features extractor
+                self.logger.record(f"custom/{self.custom_name}/loss", float(total_loss.item()))
+                for (metric, metric_val, visualize) in specific_losses.items():
+                    if not visualize:
+                        self.logger.record(f"custom/{self.custom_name}/{metric}", float(metric_val.item()))
+                    else:
+                        self.log_heatmap(metric_val, key_name=f"custom/{metric}", step=self.num_timesteps)
+            self.steps_since_update = 0
+            self.replay_buffer = []
         else:
             
             for env in range(len(self.locals['infos'])):
-                self.observation_buffer.append(torch.Tensor(self.locals['infos'][env]['obs']).permute(2, 0, 1))
-                self.action_buffer.append(self.locals['infos'][env]['action'])
-        return True
-    
-    def _update_features_extractor_from_buffer(self):
-        """Train the encoder using data from PPO's rollout buffer"""
-       #in case there are no observations in observation buffer, skip
-        if len(self.observation_buffer) == 0:
-            return 
-        
-        observations = torch.stack(self.observation_buffer)
-        actions = torch.Tensor(self.action_buffer)
-        buffer_size = len(observations)
-        
-        # Convert observations and actions to tensors
-        observations = torch.as_tensor(observations).float().to(self.model.device)
-        actions = torch.as_tensor(actions, dtype=torch.long).to(self.model.device)[:-1]
-        
-        # Forward pass
-        with torch.set_grad_enabled(True):
-            
-            batch_cov, action_distrib, thresholded_diff = self.model.policy.features_extractor(observations, test=False)
-
-            self.log_heatmap(batch_cov, key_name="self-supervised/covariance_matrix", steps=self.num_timesteps)
-            #loss 1: batch covariance close to identity (i.e. Frobenius Norm or Barlow Twins like)
-            # identity = torch.eye(batch_cov.shape[0], device=self.model.device)
-            # frob_loss = torch.norm(batch_cov - identity, p='fro')
-            diag_sum = torch.trace(batch_cov)
-            total_sum = torch.sum(batch_cov)
-            non_diag_sum = total_sum - diag_sum
-            frob_loss = self.lambda_non_diag*non_diag_sum + self.lambda_diag*((1-diag_sum)**2)
-
-            #loss 2: inverse kinematics actions prediction i.e. predict the actions
-            # reshape predicted actions to (bs*num_factors, action dim)
-            pred_action = torch.argmax(action_distrib, dim=-1)
-            
-            ik_loss = 0
-            ik_accuracy = 0
-
-            for i in range(action_distrib.shape[1]):
-                ik_loss += self.action_pred_loss(action_distrib[:,i, :], actions)
-                ik_accuracy += sum((pred_action[:,i] == actions).float())/pred_action.shape[0]
-            ik_loss /= (action_distrib.shape[1])
-            ik_accuracy /= (action_distrib.shape[1])
-            
-
-            #loss 3: additional loss to enforce few number of changing factors
-            thresholded_diff = thresholded_diff.mean()
-            
-            
-            total_loss = self.alpha_frob * frob_loss/frob_loss.detach() + self.alpha_ik * ik_loss/ik_loss.detach() + self.alpha_diff * thresholded_diff/thresholded_diff.detach()
-
-        # backward pass and optimization
-        self.optimizer.zero_grad()
-        total_loss.backward()
-        self.optimizer.step()
-                
-        # log the loss during training features extractor
-        self.logger.record(f"self-supervised/{self.custom_name}/loss", float(total_loss.item()))
-        self.logger.record(f"self-supervised/{self.custom_name}/frob_loss", float(frob_loss.item()))
-        self.logger.record(f"self-supervised/{self.custom_name}/ik_loss", float(ik_loss.item()))
-        self.logger.record(f"self-supervised/{self.custom_name}/ik_acc", float(ik_accuracy.item()))
-
-
-class SelfSupervisedCovEncoderCallback(BaseCallback):
-    """
-    Callback for training the encoder with a supervised objective
-    directly using PPO's rollout buffer.
-    """
-    def __init__(
-        self, 
-        custom_name: str,
-        update_freq: int = 256,
-        batch_size: int = 256,
-        learning_rate: float = 5e-5,
-        alpha_frob: float = 0.6,
-        alpha_reconstr: float = 0.2,
-        alpha_l1: float = 0.2,
-        verbose: int = 0,
-    ):
-        super(SelfSupervisedCovEncoderCallback, self).__init__(verbose)
-        self.update_freq = update_freq//4
-        self.batch_size = batch_size
-        self.learning_rate = learning_rate
-        self.steps_since_update = 0
-
-        #custom naming for logged metric (i.e. loss)
-        self.custom_name = custom_name
-
-        #store all the weights for loss function
-        self.alpha_frob = alpha_frob
-        self.alpha_reconstr = alpha_reconstr
-        self.alpha_l1 = alpha_l1
-        
-    def _init_callback(self) -> None:
-        
-        #defin the loss function to use during training
-        self.reconstr_loss = torch.nn.MSELoss()
-        
-        # Bring the features_extractor to the right device and create an optimizer for the model
-        self.model.policy.features_extractor.to(self.model.device)
-        self.optimizer = torch.optim.Adam(
-            self.model.policy.features_extractor.parameters(),
-            lr=self.learning_rate
-        )
-
-        #store buffer of expert state and observation
-        self.observation_buffer = []
-        
-    def _on_step(self) -> bool:
-        self.steps_since_update += 1
-        
-        # Perform supervised update at specified frequency
-        # and only after buffer has been filled at least once
-        if (self.steps_since_update >= self.update_freq and 
-            hasattr(self.model, 'rollout_buffer') and 
-            self.model.rollout_buffer is not None):
-            self._update_features_extractor_from_buffer()
-            self.steps_since_update = 0
-            self.observation_buffer = []
-
-        else:
-            
-            for env in range(len(self.locals['infos'])):
-                self.observation_buffer.append(torch.Tensor(self.locals['infos'][env]['obs']).permute(2, 0, 1))
+                self.replay_buffer.append(torch.Tensor(self.locals['infos'][env]['obs']).permute(2, 0, 1))
             
         return True
-    
-    def _update_features_extractor_from_buffer(self):
-        """Train the encoder using data from PPO's rollout buffer"""
-       #in case there are no observations in observation buffer, skip
-        if len(self.observation_buffer) == 0:
-            return 
-        
-        observations = torch.stack(self.observation_buffer)
-        buffer_size = len(observations)
-        
-        # Convert to tensors
-        observations = torch.as_tensor(observations).float().to(self.model.device)
-        
-        # Forward pass
-        with torch.set_grad_enabled(True):
-            batch_cov, curr_obs_pred, next_obs_pred, transition_proj_params = self.model.policy.features_extractor(observations, test=False)
-            
-
-            #loss 1: batch covariance close to identity (i.e. Frobenius Norm or Barlow Twins like)
-            identity = torch.eye(batch_cov.shape[0], device=self.model.device)
-            frob_loss = torch.norm(batch_cov - identity, p='fro')
-
-            #loss 2: state-transition prediction i.e. future state construction
-            #NOTE: skip first obs in obs_tensor since we cannot forecast that
-            reconstr_loss = self.reconstr_loss(next_obs_pred, curr_obs_pred[1:])
-
-            #loss 3: transition_proj_params matrix (num factors, num factors) also motivated to be sparse with L1 regularization
-            # identity = torch.eye(transition_proj_params.shape[0], device=self.model.device)
-            # trans_loss = torch.norm(transition_proj_params.T @ transition_proj_params - identity, p='fro')
-            #add L1 regularization term
-            l1_reg = 0.0
-            for name, param in self.model.policy.features_extractor.learning_head.transition_proj.named_parameters():
-                if 'weight' in name:
-                    l1_reg += torch.sum(torch.abs(param))
-            
-            total_loss = self.alpha_frob * frob_loss/frob_loss.detach() + self.alpha_reconstr * reconstr_loss/reconstr_loss.detach() + self.alpha_l1 * l1_reg/l1_reg.detach()
-
-        # backward pass and optimization
-        self.optimizer.zero_grad()
-        total_loss.backward()
-        self.optimizer.step()
-                
-        # log the loss during training features extractor
-        self.logger.record(f"self-supervised/{self.custom_name}/loss", float(total_loss.item()))
-        self.logger.record(f"self-supervised/{self.custom_name}/frob_loss", float(frob_loss.item()))
-        self.logger.record(f"self-supervised/{self.custom_name}/reconstr_loss", float(reconstr_loss.item()))
-        self.logger.record(f"self-supervised/{self.custom_name}/l1_reg_loss", float(l1_reg.item()))
-
-class SupervisedEncoderCallback(BaseCallback):
+  
     """
     Callback for training the encoder with a supervised objective
     directly using PPO's rollout buffer.
@@ -1001,3 +636,147 @@ class SupervisedEncoderCallback(BaseCallback):
         # Log the loss during training features extractor
         self.logger.record(f"supervised/{self.custom_name}/loss", float(loss.item()))
         self.logger.record(f"supervised/{self.custom_name}/acc", float(accuracy.item()))
+
+class AuxiliaryLossCallback(BaseCallback):
+    """
+    Callback for training custom auxiliary losses for encoders using a custom
+    auxiliary ring buffer (stores obs/next_obs/action/done/info).
+    """
+
+    def __init__(
+        self,
+        custom_name: str,
+        num_envs: int,
+        train_every: int = 256,
+        batch_size: int = 256,
+        learning_rate: float = 2e-4,
+        aux_loss_updates: int = 3,
+        buffer_capacity: int = 100_000,
+        verbose: int = 0,
+    ):
+        super().__init__(verbose)
+
+        self.custom_name = custom_name
+        self.batch_size = batch_size
+        self.learning_rate = learning_rate
+
+        # Interpret train_every in *env steps*; convert to callback calls (which are per env step across vec envs)
+        self.train_every = max(1, train_every // max(1, num_envs))
+        self.aux_loss_updates = aux_loss_updates
+        self.buffer_capacity = buffer_capacity
+
+        self.steps_since_update = 0
+
+    def _init_callback(self) -> None:
+        self.data_buffer = _AuxRingBuffer(capacity=self.buffer_capacity)
+        self.optimizer_dict = self.model.policy.feature_extractor.build_optimizers()
+        self.schedulers = {k: self.model.policy.feature_extractor.setup_schedules(opt)\ 
+        if hasattr(self.model.policy.feature_extractor, 'setup_schedules') else None\
+        for k, opt in self.optimizer_dict.items()} 
+
+    def log_heatmap(self, matrix, key_name, step):
+        fig, ax = plt.subplots()
+        sns.heatmap(matrix.detach().cpu().numpy(), ax=ax, cmap="viridis", cbar=True)
+        wandb.log({key_name: wandb.Image(fig)}, step=step)
+        plt.close(fig)
+
+    def _on_step(self) -> bool:
+        """
+        1) Push latest transitions (including infos) into aux ring buffer
+        2) Every train_every steps, sample batches from aux buffer and update encoder
+        """
+        # ----------------------------
+        # 1) Collect transition(s)
+        # ----------------------------
+        # SB3 usually provides these in callback locals (names can vary by algo/version/wrappers)
+        obs = self.locals.get("obs", None)
+        next_obs = self.locals.get("new_obs", None) or self.locals.get("next_obs", None)
+        actions = self.locals.get("actions", None)
+        dones = self.locals.get("dones", None)
+        infos = self.locals.get("infos", None)
+        labels = []
+        for i in range(len(infos)):
+            sublisted_expert_state = list(self.locals['infos'][i]['state_dict'].values())
+            labels.append(
+                torch.Tensor([item for sublist in sublisted_expert_state for item in (sublist if isinstance(sublist, tuple) else [sublist])]).to(torch.int64)
+            )  
+
+        # Normalize infos to list-of-dicts (vec env) or [dict] (single env)
+        if infos is None:
+            infos = [None]
+        elif isinstance(infos, dict):
+            infos = [infos]
+
+        # Helper to index potentially-batched structures
+        def _at(x, i):
+            if x is None:
+                return None
+            if isinstance(x, dict):
+                return {k: _at(v, i) for k, v in x.items()}
+            if isinstance(x, (list, tuple)):
+                return x[i]
+            try:
+                return x[i]
+            except Exception:
+                return x
+
+        # Only add if we have a valid transition
+        if obs is not None and next_obs is not None and actions is not None:
+            # Determine n_envs for this step
+            n_envs = len(infos)
+
+            for i in range(n_envs):
+                self.data_buffer.add(
+                    obs=_at(obs, i),
+                    next_obs=_at(next_obs, i),
+                    action=_at(actions, i),
+                    done=_at(dones, i),
+                    info=infos[i] if i < len(infos) else None,
+                    labels=_at(labels, i)
+                )
+
+        # ----------------------------
+        # 2) Periodic encoder updates
+        # ----------------------------
+
+        # Train only at frequency, and only if we have enough samples
+        if self.steps_since_update < self.train_every:
+            return True
+        if len(self.aux_buffer) < self.batch_size:
+            return True
+        if not hasattr(self.model.policy.feature_extractor, "compute_loss"):
+            return True
+        self.steps_since_update += 1
+        device = self.model.device
+
+        feature_extractor = self.model.policy.feature_extractor
+
+        for _ in range(self.aux_loss_updates):
+            batch = self.aux_buffer.sample(self.batch_size, device=device)
+            total_loss, specific_metrics = feature_extractor.compute_loss(batch)
+
+            for _, optimizer in self.optimizer_dict.items():
+                optimizer.zero_grad(set_to_none=True)
+            total_loss.backward()
+            for _, optimizer in self.optimizer_dict.items():
+                optimizer.step()
+            for sch in self.schedulers.values():
+                if sch:
+                    sch.step()
+            if hasattr(feature_extractor, "post_step") and callable(feature_extractor.aux_post_step):
+                post_step_metrics = feature_extractor.post_step()
+            specific_metrics = specific_metrics | post_step_metrics
+
+            # logging all metrics
+            self.logger.record(f"custom/{self.custom_name}/loss", float(total_loss.detach().cpu().item()))
+            for metric, (metric_val, visualize) in specific_metrics.items():
+                if not visualize:
+                    self.logger.record(
+                        f"custom/{self.custom_name}/{metric}",
+                        float(metric_val.detach().cpu().item()),
+                    )
+                else:
+                    self.log_heatmap(metric_val, key_name=f"custom/{metric}", step=self.num_timesteps)
+
+        self.steps_since_update = 0
+        return True

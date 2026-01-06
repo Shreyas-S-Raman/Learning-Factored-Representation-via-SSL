@@ -1,14 +1,14 @@
+from __future__ import annotations
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
-import gymnasium as gym
 from gymnasium import spaces
 from stable_baselines3.common.preprocessing import is_image_space
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pdb
-from typing import Optional
-from models.learning_head.self_supervised_head import SelfSupervisedCovLearner, SelfSupervisedMaskLearner, SelfSupervisedCovIKLearner, SelfSupervisedMaskReconstrLearner
-from models.learning_head.supervised_head import SupervisedLearner
+from typing import Optional, TYPE_CHECKING
+if TYPE_CHECKING:
+    import gymnasium as gym
 
 class NatureCNN(BaseFeaturesExtractor):
     """
@@ -30,13 +30,7 @@ class NatureCNN(BaseFeaturesExtractor):
         self,
         observation_space: gym.Space,
         features_dim: int = 512,
-        backbone_dim: int = 512,
-        vector_size_per_factor:int = None,
-        num_actions: int=3,
-        expert_obs: gym.Space= None,
-        num_factors: int = None,
-        normalized_image: bool = None,
-        learning_head:Optional[str]=None
+        normalized_image: bool = None
     ) -> None:
         assert isinstance(observation_space, spaces.Box), (
             "NatureCNN must be used with a gym.spaces.Box ",
@@ -59,7 +53,6 @@ class NatureCNN(BaseFeaturesExtractor):
         )
 
         n_input_channels = observation_space.shape[0]
-        output_dims = expert_obs.high
 
         self.cnn = nn.Sequential(
             nn.Conv2d(n_input_channels, 32, kernel_size=8, stride=4, padding=0),
@@ -75,19 +68,12 @@ class NatureCNN(BaseFeaturesExtractor):
         with th.no_grad():
             n_flatten = self.cnn(th.as_tensor(observation_space.sample()[None]).float()).shape[1]
 
-        self.linear = nn.Sequential(nn.Linear(n_flatten, backbone_dim), nn.ReLU())
+        self.linear = nn.Sequential(nn.Linear(n_flatten, features_dim), nn.ReLU())
 
-        learning_heads = {'supervised': SupervisedLearner, 'ssl-cov':SelfSupervisedCovLearner, 'ssl-cov-ik':SelfSupervisedCovIKLearner, 'ssl-mask':SelfSupervisedMaskLearner, 'ssl-mask-reconstr':SelfSupervisedMaskReconstrLearner}
-        self.learning_head = None if learning_head is None or learning_head not in learning_heads else learning_heads[learning_head](backbone_dim=backbone_dim, vector_size_per_factor=vector_size_per_factor, num_factors=output_dims if learning_head == 'supervised' else num_factors, num_actions = num_actions)
-
-    def forward(self, x: th.Tensor, actions:th.Tensor=None, test:bool=True) -> th.Tensor:
+    def forward(self, x: th.Tensor) -> th.Tensor:
         
         # Forward pass through the Sequential block and fully-connected layer
         x = self.cnn(x)
         x = self.linear(x)
-
-        #conditionally apply the learning head on the output from the FC
-        if self.learning_head:
-            x = self.learning_head(x, actions=actions, test=test)
 
         return x
